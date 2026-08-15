@@ -12,6 +12,9 @@ Before analysing or modifying infrastructure:
 4. Use `.okf/knowledge/` for human-curated architecture, security, decisions and operations.
 5. Treat infrastructure source as the implementation source of truth.
 6. If source conflicts with OKF, report the discrepancy and regenerate OKF with `tf2okf generate`.
+7. Minimize file reads: start with the smallest OKF set that can answer the question.
+8. Only read Terraform/Terragrunt source after OKF when details are missing, ambiguous, or conflicting.
+9. Avoid duplicate exploration across equivalent OKF and source files unless you are resolving a specific gap.
 '''
 
 EXTRA={

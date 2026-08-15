@@ -209,7 +209,7 @@ def generate_tfscaffold_bundle(model: TfScaffoldModel, out: Path, cfg: dict) -> 
     for unit in model.modules: _write_unit(gen/'shared-modules'/unit.name,unit,model.root,cfg)
     _write_envs(gen/'environments.md',model)
 
-    gi=['# Generated tfscaffold Knowledge','', 'This directory contains machine-generated summaries for tfscaffold components, shared modules, and environment metadata.', '', f'Components: **{len(model.components)}**  ',f'Shared modules: **{len(model.modules)}**','', '* [Environments](environments.md) - Environment/version tfvars discovered under `etc/`.','']
+    gi=['# Generated tfscaffold Knowledge','',f'Components: **{len(model.components)}**  ',f'Shared modules: **{len(model.modules)}**','', '* [Environments](environments.md) - Environment/version tfvars discovered under `etc/`.','']
     if model.components: gi += ['## Components','']+[f'* [{u.name}](components/{u.name}/) - independent Terraform root module.' for u in model.components]+['']
     if model.modules: gi += ['## Shared modules','']+[f'* [{u.name}](shared-modules/{u.name}/) - reusable Terraform module.' for u in model.modules]+['']
     _write(gen/'index.md','\n'.join(gi))
