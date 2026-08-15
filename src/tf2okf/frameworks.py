@@ -52,9 +52,20 @@ def detect(repo: Path, cfg: dict | None = None) -> Detection:
     def add(name: str, points: int, reason: str):
         score, reasons = scores[name]; scores[name] = (score + points, reasons + [reason])
 
+    components_dir = repo / 'components'
+    modules_dir = repo / 'modules'
+    etc_dir = repo / 'etc'
     if (repo/'bin'/'terraform.sh').exists(): add('tfscaffold', 45, 'found bin/terraform.sh')
-    if (repo/'components').is_dir(): add('tfscaffold', 25, 'found components/ directory')
-    if (repo/'etc').is_dir() and any((repo/'etc').glob('*.tfvars*')): add('tfscaffold', 15, 'found tfvars under etc/')
+    if components_dir.is_dir(): add('tfscaffold', 25, 'found components/ directory')
+    if etc_dir.is_dir() and any(etc_dir.glob('*.tfvars*')): add('tfscaffold', 15, 'found tfvars under etc/')
+    if components_dir.is_dir() and any(child.is_dir() and any(child.glob('*.tf')) for child in components_dir.iterdir()):
+        add('tfscaffold', 10, 'found Terraform component units under components/')
+    if modules_dir.is_dir() and any(child.is_dir() and any(child.glob('*.tf')) for child in modules_dir.iterdir()):
+        add('tfscaffold', 10, 'found Terraform shared modules under modules/')
+    if etc_dir.is_dir() and (
+        any(etc_dir.glob('env_*_*.tfvars*')) and any(etc_dir.glob('versions_*_*.tfvars*'))
+    ):
+        add('tfscaffold', 10, 'found tfscaffold env/versions tfvars naming under etc/')
 
     tg = [p for p in repo.rglob('terragrunt.hcl') if '.terragrunt-cache' not in p.parts and '.terragrunt-stack' not in p.parts]
     stacks = [p for p in repo.rglob('terragrunt.stack.hcl') if '.terragrunt-cache' not in p.parts and '.terragrunt-stack' not in p.parts]

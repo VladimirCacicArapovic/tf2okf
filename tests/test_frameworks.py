@@ -34,3 +34,20 @@ def test_explicit_framework_override(tmp_path: Path):
     cfg=load(tmp_path); cfg['framework']['type']='plain-terraform'
     d=detect(tmp_path,cfg)
     assert d.framework=='plain-terraform' and d.confidence==100
+
+def test_detect_tfscaffold_high_confidence(tmp_path: Path):
+    (tmp_path/'bin').mkdir()
+    (tmp_path/'bin'/'terraform.sh').write_text('#!/bin/bash\n')
+    component = tmp_path/'components'/'app'
+    component.mkdir(parents=True)
+    (component/'main.tf').write_text('resource "null_resource" "x" {}')
+    module = tmp_path/'modules'/'tags'
+    module.mkdir(parents=True)
+    (module/'main.tf').write_text('output "x" { value = "x" }')
+    etc = tmp_path/'etc'
+    etc.mkdir()
+    (etc/'env_eu-west-1_dev.tfvars').write_text('environment = "dev"\n')
+    (etc/'versions_eu-west-1_dev.tfvars').write_text('app_version = "1"\n')
+    d=detect(tmp_path,load(tmp_path))
+    assert d.framework=='tfscaffold'
+    assert d.confidence >= 95
