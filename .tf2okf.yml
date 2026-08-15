@@ -1,0 +1,39 @@
+version: '2'
+framework:
+  type: auto
+terraform:
+  root: .
+  recursive_modules: true
+tfscaffold:
+  components_dir: components
+  modules_dir: modules
+  variables_dir: etc
+  include_components:
+  - '*'
+  include_modules: true
+terragrunt:
+  ignore_dirs:
+  - .git
+  - .terraform
+  - .terragrunt-cache
+  - .terragrunt-stack
+  - .okf
+sources:
+  terraform: true
+  terraform_docs: true
+  readme: true
+output:
+  directory: .okf
+generation:
+  resources: true
+  modules: true
+  dependencies: true
+  inputs: true
+  outputs: true
+  providers: true
+knowledge:
+  preserve_manual_files: true
+copilot:
+  generate_instructions: true
+security:
+  redact_sensitive_attributes: true

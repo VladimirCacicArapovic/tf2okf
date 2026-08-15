@@ -1,0 +1,14 @@
+environment          = "prod"
+region               = "eu-west-2"
+app_name             = "payments-api"
+container_image      = "123456789012.dkr.ecr.eu-west-2.amazonaws.com/payments-api:2026-08-15"
+container_port       = 8080
+vpc_cidr             = "10.30.0.0/16"
+availability_zones   = ["eu-west-2a", "eu-west-2b"]
+public_subnet_cidrs  = ["10.30.0.0/24", "10.30.1.0/24"]
+private_subnet_cidrs = ["10.30.10.0/24", "10.30.11.0/24"]
+vpc_id               = "vpc-0abcdef1234567890"
+private_subnet_ids   = ["subnet-aaaa1111", "subnet-bbbb2222"]
+public_subnet_ids    = ["subnet-cccc3333", "subnet-dddd4444"]
+alb_security_group_id = "sg-0a1b2c3d4e5f67890"
+app_security_group_id = "sg-0987654321fedcba0"

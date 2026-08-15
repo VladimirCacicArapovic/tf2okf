@@ -1,0 +1,32 @@
+[
+  {
+    "timestamp": "2026-08-15T08:16:53Z",
+    "scenario": "architecture",
+    "prompt_name": "app-dependencies",
+    "prompt_text": "Explain how the application component depends on the network and security layers.",
+    "used_okf": false,
+    "okf_context": "",
+    "response_quality": 3,
+    "response_time_seconds": 18.0,
+    "answer_summary": "Mostly correct but had to explore files manually.",
+    "notes": "",
+    "input_tokens": null,
+    "output_tokens": null,
+    "total_tokens": null
+  },
+  {
+    "timestamp": "2026-08-15T08:55:30Z",
+    "scenario": "architecture",
+    "prompt_name": "app-dependencies",
+    "prompt_text": "Explain how the application component depends on the network and security layers.",
+    "used_okf": true,
+    "okf_context": ".okf/generated/index.md,.okf/generated/components/app/index.md,.okf/knowledge/architecture.md",
+    "response_quality": 5,
+    "response_time_seconds": 10.0,
+    "answer_summary": "Clear answer with correct dependency flow and less exploration.",
+    "notes": "Asked Copilot to read OKF first",
+    "input_tokens": null,
+    "output_tokens": null,
+    "total_tokens": null
+  }
+]

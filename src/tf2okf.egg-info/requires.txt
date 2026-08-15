@@ -1,0 +1,16 @@
+PyYAML<7,>=6.0.2
+typer<1,>=0.12.5
+
+[dev]
+pytest<9,>=8.3
+pytest-cov<7,>=5
+ruff<1,>=0.9
+mypy<2,>=1.13
+bandit<2,>=1.8
+pip-audit<3,>=2.7
+build<2,>=1.2
+twine<7,>=6
+types-PyYAML<7,>=6.0
+
+[hcl]
+python-hcl2<8,>=7.0

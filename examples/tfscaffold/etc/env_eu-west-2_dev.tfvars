@@ -1,0 +1,14 @@
+environment          = "dev"
+region               = "eu-west-2"
+app_name             = "payments-api"
+container_image      = "public.ecr.aws/docker/library/nginx:stable"
+container_port       = 8080
+vpc_cidr             = "10.20.0.0/16"
+availability_zones   = ["eu-west-2a", "eu-west-2b"]
+public_subnet_cidrs  = ["10.20.0.0/24", "10.20.1.0/24"]
+private_subnet_cidrs = ["10.20.10.0/24", "10.20.11.0/24"]
+vpc_id               = "vpc-0123456789abcdef0"
+private_subnet_ids   = ["subnet-11111111", "subnet-22222222"]
+public_subnet_ids    = ["subnet-33333333", "subnet-44444444"]
+alb_security_group_id = "sg-0123456789abcdef0"
+app_security_group_id = "sg-0fedcba9876543210"
