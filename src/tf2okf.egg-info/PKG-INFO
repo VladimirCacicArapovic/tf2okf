@@ -39,12 +39,36 @@ Dynamic: license-file
 
 Requires Python 3.10 or newer.
 
+### Install from this repository (local source)
+
 ```bash
-python3.15 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-pip install .
+python3 -m pip install -r requirements.txt
+python3 -m pip install .
 tf2okf --help
+```
+
+### Install for use in other repositories
+
+Install once, then run `tf2okf` from any Terraform/Terragrunt project.
+
+If published on PyPI:
+
+```bash
+python3 -m pip install tf2okf
+```
+
+If not published on PyPI, install directly from Git:
+
+```bash
+python3 -m pip install "git+https://github.com/<owner>/tf2okf.git"
+```
+
+For isolated global CLI usage across projects (`pipx`):
+
+```bash
+pipx install "git+https://github.com/<owner>/tf2okf.git"
 ```
 
 Common commands:

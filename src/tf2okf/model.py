@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+
 @dataclass
 class Variable:
     name: str
@@ -11,6 +12,7 @@ class Variable:
     sensitive: bool = False
     file: str | None = None
 
+
 @dataclass
 class Output:
     name: str
@@ -18,6 +20,7 @@ class Output:
     value: str | None = None
     sensitive: bool = False
     file: str | None = None
+
 
 @dataclass
 class Resource:
@@ -32,6 +35,7 @@ class Resource:
     def address(self) -> str:
         return f"data.{self.type}.{self.name}" if self.kind == "data" else f"{self.type}.{self.name}"
 
+
 @dataclass
 class Module:
     name: str
@@ -44,11 +48,13 @@ class Module:
     def address(self) -> str:
         return f"module.{self.name}"
 
+
 @dataclass
 class Provider:
     name: str
     source: str | None = None
     version: str | None = None
+
 
 @dataclass
 class TerraformModel:
