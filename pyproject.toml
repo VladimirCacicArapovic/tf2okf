@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tf2okf"
-version = "0.4.0"
+version = "0.5.0"
 description = "Generate Open Knowledge Format (OKF) v0.2 bundles from Terraform-family repositories"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,7 +13,7 @@ authors = [{name = "tf2okf contributors"}]
 dependencies = ["PyYAML>=6.0.2,<7", "typer>=0.12.5,<1"]
 keywords = ["terraform", "terragrunt", "tfscaffold", "okf", "open-knowledge-format", "copilot", "iac"]
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "Development Status :: 5 - Beta",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
