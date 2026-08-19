@@ -215,4 +215,4 @@ No LLM is required for deterministic OKF generation. AI summaries are optional a
 
 ## Open-source release checklist
 
-Before publishing: enable GitHub private vulnerability reporting, branch protection/rulesets, required CI/CodeQL/dependency review checks, Dependabot security updates, secret scanning/push protection where available, and PyPI trusted publishing for the `pypi` environment. Run `python -m build && python -m twine check dist/*` locally or in CI.
+Before publishing: enable GitHub private vulnerability reporting, branch protection/rulesets, required CI/CodeQL/dependency review checks, Dependabot security updates, secret scanning/push protection where available, and PyPI trusted publishing for the `pypi` environment. Run `python -m build && python -m twine check dist/*` locally or in CI. See `docs/pypi-release.md` for the workflow and setup details.
