@@ -9,7 +9,7 @@ tags:
 - tags
 generated:
   by: tf2okf/0.4.0
-  at: '2026-08-15T09:33:39Z'
+  at: '2026-08-19T22:09:43Z'
 sources:
 - id: source-1
   resource: ../../../../modules/tags/main.tf
@@ -29,6 +29,12 @@ Source directory: `modules/tags`
 - Module calls: **0**
 - Inputs: **3**
 - Outputs: **1**
+
+## Component description
+
+<!-- tf2okf:manual-description-start -->
+Add a detailed description of what this component is for, how it is used, and any operational caveats. Anything between the marker comments is preserved by `tf2okf generate`.
+<!-- tf2okf:manual-description-end -->
 
 ## Knowledge
 

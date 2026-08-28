@@ -11,7 +11,7 @@ tags:
 - aws_subnet
 generated:
   by: tf2okf/0.4.0
-  at: '2026-08-15T09:33:39Z'
+  at: '2026-08-19T22:09:43Z'
 resource: terraform://tfscaffold/module/vpc/aws_subnet.public
 sources:
 - id: source-1
