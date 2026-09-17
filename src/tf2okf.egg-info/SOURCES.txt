@@ -2,6 +2,7 @@ LICENSE
 README.md
 pyproject.toml
 src/tf2okf/__init__.py
+src/tf2okf/ai.py
 src/tf2okf/cli.py
 src/tf2okf/config.py
 src/tf2okf/copilot.py
@@ -19,6 +20,7 @@ src/tf2okf.egg-info/dependency_links.txt
 src/tf2okf.egg-info/entry_points.txt
 src/tf2okf.egg-info/requires.txt
 src/tf2okf.egg-info/top_level.txt
+tests/test_ai.py
 tests/test_cli.py
 tests/test_frameworks.py
 tests/test_generator.py
