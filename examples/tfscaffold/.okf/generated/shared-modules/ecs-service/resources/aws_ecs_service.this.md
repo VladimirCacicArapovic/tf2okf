@@ -11,7 +11,7 @@ tags:
 - aws_ecs_service
 generated:
   by: tf2okf/0.4.0
-  at: '2026-08-19T22:09:43Z'
+  at: '2026-09-17T19:58:26Z'
 resource: terraform://tfscaffold/module/ecs-service/aws_ecs_service.this
 sources:
 - id: source-1
@@ -30,12 +30,20 @@ sources:
 
 | Attribute | Expression |
 |---|---|
+| `assign_public_ip` | `false` |
 | `cluster` | `aws_ecs_cluster.this.id` |
+| `container_name` | `var.app_name` |
+| `container_port` | `var.container_port` |
 | `depends_on` | `[aws_lb_listener.http]` |
 | `desired_count` | `2` |
 | `launch_type` | `"FARGATE"` |
 | `name` | `"${var.environment}-${var.app_name}"` |
-| `tags` | `merge(var.tags, {` |
+| `security_groups` | `[var.app_security_group_id]` |
+| `subnets` | `var.private_subnet_ids` |
+| `tags` | `merge(var.tags, {
+Name = "${var.environment}-${var.app_name}-service"
+})` |
+| `target_group_arn` | `aws_lb_target_group.this.arn` |
 | `task_definition` | `aws_ecs_task_definition.this.arn` |
 
 ## References

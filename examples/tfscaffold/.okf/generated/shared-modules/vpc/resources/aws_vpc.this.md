@@ -11,7 +11,7 @@ tags:
 - aws_vpc
 generated:
   by: tf2okf/0.4.0
-  at: '2026-08-19T22:09:43Z'
+  at: '2026-09-17T19:58:26Z'
 resource: terraform://tfscaffold/module/vpc/aws_vpc.this
 sources:
 - id: source-1
@@ -33,7 +33,9 @@ sources:
 | `cidr_block` | `var.vpc_cidr` |
 | `enable_dns_hostnames` | `true` |
 | `enable_dns_support` | `true` |
-| `tags` | `merge(var.tags, {` |
+| `tags` | `merge(var.tags, {
+Name = "${var.environment}-shared-vpc"
+})` |
 
 ## References
 

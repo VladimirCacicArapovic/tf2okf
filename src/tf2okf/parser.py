@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from .model import Module, Output, Provider, Resource, TerraformModel, Variable
+from .model import IamPolicyFact, IamStatement, Module, Output, Provider, Resource, TerraformModel, Variable
 from .security import MAX_SUBPROCESS_OUTPUT, should_read
 
 BLOCK_RE = re.compile(r'(?m)^\s*(resource|data|module|variable|output|provider)\s+"([^"]+)"(?:\s+"([^"]+)")?\s*\{')
@@ -15,6 +15,12 @@ REF_RE = re.compile(
     r"\b(?:data\.)?[A-Za-z_][\w-]*\.[A-Za-z_][\w-]*(?:\.[A-Za-z_][\w-]*)?|\bmodule\.[A-Za-z_][\w-]*|\bvar\.[A-Za-z_][\w-]*|\blocal\.[A-Za-z_][\w-]*"
 )
 ATTR_RE = re.compile(r"(?m)^\s*([A-Za-z_][\w-]*)\s*=\s*(.+?)\s*$")
+_POLICY_REF_RE = re.compile(r"\b(?:data\.)?aws_iam_policy_document\.[A-Za-z_][\w-]*\.(json|rendered)\b")
+_ATTACHMENT_TARGETS = {
+    "aws_iam_group_policy_attachment": "group",
+    "aws_iam_role_policy_attachment": "role",
+    "aws_iam_user_policy_attachment": "user",
+}
 
 
 def _balanced_block(text: str, open_pos: int) -> tuple[str, int]:
@@ -74,19 +80,31 @@ def _balanced_block(text: str, open_pos: int) -> tuple[str, int]:
 
 
 def _attrs(body: str) -> dict[str, str]:
-    # Top-level-ish line attributes. This intentionally preserves expressions as text.
-    out = {}
-    depth = 0
-    for line in body.splitlines():
-        stripped = line.strip()
+    # Top-level-ish attributes with multiline expression support.
+    out: dict[str, str] = {}
+    lines = body.splitlines()
+    index = 0
+    while index < len(lines):
+        stripped = lines[index].strip()
         if not stripped or stripped.startswith(("#", "//")):
+            index += 1
             continue
-        if depth == 0:
-            m = re.match(r"^([A-Za-z_][\w-]*)\s*=\s*(.+)$", stripped)
-            if m:
-                out[m.group(1)] = m.group(2).strip()
-        depth += line.count("{") + line.count("[") - line.count("}") - line.count("]")
-        depth = max(depth, 0)
+        match = re.match(r"^([A-Za-z_][\w-]*)\s*=\s*(.+)$", stripped)
+        if not match:
+            index += 1
+            continue
+        key = match.group(1)
+        parts = [match.group(2).strip()]
+        depth = parts[0].count("{") + parts[0].count("[") + parts[0].count("(")
+        depth -= parts[0].count("}") + parts[0].count("]") + parts[0].count(")")
+        index += 1
+        while depth > 0 and index < len(lines):
+            part = lines[index].strip()
+            parts.append(part)
+            depth += part.count("{") + part.count("[") + part.count("(")
+            depth -= part.count("}") + part.count("]") + part.count(")")
+            index += 1
+        out[key] = "\n".join(parts).strip()
     return out
 
 
@@ -97,6 +115,259 @@ def _clean_string(value: str | None) -> str | None:
     if len(value) >= 2 and value[0] == value[-1] == '"':
         return value[1:-1]
     return value
+
+
+def _split_quoted_items(expr: str) -> list[str]:
+    return [m.group(1) for m in re.finditer(r'"([^"\\]*(?:\\.[^"\\]*)*)"', expr)]
+
+
+def _statement_blocks(body: str) -> list[str]:
+    blocks: list[str] = []
+    for match in re.finditer(r'(?m)^\s*statement\s*\{', body):
+        block, _ = _balanced_block(body, match.end() - 1)
+        blocks.append(block)
+    return blocks
+
+
+def _principal_blocks(body: str) -> list[str]:
+    blocks: list[str] = []
+    for match in re.finditer(r'(?m)^\s*principals\s*\{', body):
+        block, _ = _balanced_block(body, match.end() - 1)
+        blocks.append(block)
+    return blocks
+
+
+def _iam_statement_from_block(body: str) -> IamStatement:
+    attrs = _attrs(body)
+    principals: list[str] = []
+    for principal_body in _principal_blocks(body):
+        principal_attrs = _attrs(principal_body)
+        principal_type = _clean_string(principal_attrs.get("type"))
+        identifiers = _split_quoted_items(principal_attrs.get("identifiers", ""))
+        if principal_type and identifiers:
+            principals.extend([f"{principal_type}:{identifier}" for identifier in identifiers])
+        else:
+            principals.extend(identifiers)
+    return IamStatement(
+        sid=_clean_string(attrs.get("sid")),
+        effect=_clean_string(attrs.get("effect")),
+        actions=_split_quoted_items(attrs.get("actions", "")),
+        not_actions=_split_quoted_items(attrs.get("not_actions", "")),
+        resources=_split_quoted_items(attrs.get("resources", "")),
+        not_resources=_split_quoted_items(attrs.get("not_resources", "")),
+        principals=principals,
+    )
+
+
+def _jsonencode_object(expr: str) -> str | None:
+    expr = expr.strip()
+    if not expr.startswith("jsonencode("):
+        return None
+    start = expr.find("(")
+    if start < 0:
+        return None
+    depth = 0
+    in_str = False
+    escape = False
+    for index in range(start, len(expr)):
+        char = expr[index]
+        if in_str:
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == '"':
+                in_str = False
+            continue
+        if char == '"':
+            in_str = True
+            continue
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return expr[start + 1 : index].strip()
+    return None
+
+
+def _first_bracket_content(expr: str, open_char: str, close_char: str) -> str | None:
+    start = expr.find(open_char)
+    if start < 0:
+        return None
+    depth = 0
+    in_str = False
+    escape = False
+    for index in range(start, len(expr)):
+        char = expr[index]
+        if in_str:
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == '"':
+                in_str = False
+            continue
+        if char == '"':
+            in_str = True
+            continue
+        if char == open_char:
+            depth += 1
+        elif char == close_char:
+            depth -= 1
+            if depth == 0:
+                return expr[start + 1 : index]
+    return None
+
+
+def _object_value(expr: str, key: str) -> str | None:
+    match = re.search(rf'(?m)(?:^|[{{,\n])\s*{re.escape(key)}\s*=\s*', expr)
+    if not match:
+        return None
+    index = match.end()
+    depth_brace = 0
+    depth_bracket = 0
+    in_str = False
+    escape = False
+    value_start = index
+    while index < len(expr):
+        char = expr[index]
+        if in_str:
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == '"':
+                in_str = False
+            index += 1
+            continue
+        if char == '"':
+            in_str = True
+            index += 1
+            continue
+        if char == "{":
+            depth_brace += 1
+        elif char == "}":
+            if depth_brace == 0 and depth_bracket == 0:
+                break
+            depth_brace = max(depth_brace - 1, 0)
+        elif char == "[":
+            depth_bracket += 1
+        elif char == "]":
+            depth_bracket = max(depth_bracket - 1, 0)
+        elif char == "," and depth_brace == 0 and depth_bracket == 0:
+            break
+        elif char == "\n" and depth_brace == 0 and depth_bracket == 0:
+            remainder = expr[index + 1 :]
+            if re.match(r"^\s*[A-Za-z_][\w-]*\s*=", remainder):
+                break
+        index += 1
+    return expr[value_start:index].strip()
+
+
+def _object_list(expr: str, key: str) -> list[str]:
+    value = _object_value(expr, key)
+    if not value:
+        return []
+    if value.strip().startswith("["):
+        return _split_quoted_items(_first_bracket_content(value, "[", "]") or "")
+    single = _clean_string(value)
+    return [single] if single else []
+
+
+def _inline_statement_objects(expr: str) -> list[str]:
+    statement_expr = _object_value(expr, "Statement")
+    if not statement_expr:
+        return []
+    stripped = statement_expr.strip()
+    if stripped.startswith("{"):
+        body = _first_bracket_content(stripped, "{", "}")
+        return [body] if body is not None else []
+    if stripped.startswith("["):
+        content = _first_bracket_content(stripped, "[", "]") or ""
+        objects: list[str] = []
+        index = 0
+        while index < len(content):
+            if content[index] == "{":
+                body, next_index = _balanced_block(content, index)
+                objects.append(body)
+                index = next_index
+            else:
+                index += 1
+        return objects
+    return []
+
+
+def _iam_statement_from_json_object(body: str) -> IamStatement:
+    principals: list[str] = []
+    principal_expr = _object_value(body, "Principal")
+    if principal_expr:
+        stripped = principal_expr.strip()
+        if stripped.startswith("{"):
+            principal_body = _first_bracket_content(stripped, "{", "}") or ""
+            for principal_type in ["AWS", "Service", "Federated", "CanonicalUser"]:
+                for identifier in _object_list(principal_body, principal_type):
+                    principals.append(f"{principal_type}:{identifier}")
+        else:
+            principal = _clean_string(stripped)
+            if principal:
+                principals.append(principal)
+    return IamStatement(
+        sid=_clean_string(_object_value(body, "Sid")),
+        effect=_clean_string(_object_value(body, "Effect")),
+        actions=_object_list(body, "Action"),
+        not_actions=_object_list(body, "NotAction"),
+        resources=_object_list(body, "Resource"),
+        not_resources=_object_list(body, "NotResource"),
+        principals=principals,
+    )
+
+
+def _attachment_policy_targets(policy_expr: str) -> list[str]:
+    return re.findall(r'(?:data\.)?aws_iam_policy(?:_document)?\.[A-Za-z_][\w-]*', policy_expr)
+
+
+def _extract_iam_policy_facts(model: TerraformModel) -> None:
+    facts: dict[str, IamPolicyFact] = {}
+    attachment_refs: dict[str, list[str]] = {}
+    for resource in model.resources:
+        if resource.type == "aws_iam_policy_document":
+            statements = [_iam_statement_from_block(block) for block in _statement_blocks(resource.body or "")]
+            facts[resource.address] = IamPolicyFact(
+                address=resource.address,
+                source_kind="data" if resource.kind == "data" else "resource",
+                name=resource.name,
+                file=resource.file,
+                statements=statements,
+            )
+        elif resource.type == "aws_iam_policy":
+            policy_expr = resource.attributes.get("policy")
+            statements: list[IamStatement] = []
+            json_body = _jsonencode_object(policy_expr or "")
+            if json_body:
+                statements = [_iam_statement_from_json_object(body) for body in _inline_statement_objects(json_body)]
+            facts[resource.address] = IamPolicyFact(
+                address=resource.address,
+                source_kind="resource",
+                name=resource.name,
+                file=resource.file,
+                statements=statements,
+                raw_policy=policy_expr,
+            )
+        elif resource.type in _ATTACHMENT_TARGETS:
+            policy_arn = resource.attributes.get("policy_arn", "")
+            target_kind = _ATTACHMENT_TARGETS[resource.type]
+            target_value = _clean_string(resource.attributes.get(target_kind)) or resource.attributes.get(target_kind, "")
+            label = f"{target_kind}:{target_value}" if target_value else target_kind
+            for match in _attachment_policy_targets(policy_arn):
+                attachment_refs.setdefault(match, []).append(label)
+
+    for address, targets in attachment_refs.items():
+        fact = facts.get(address)
+        if fact:
+            fact.attachments = sorted(set(targets))
+
+    model.iam_policies = sorted(facts.values(), key=lambda item: item.address)
 
 
 def parse_terraform(root: Path, source_root: Path | None = None) -> TerraformModel:
@@ -115,7 +386,7 @@ def parse_terraform(root: Path, source_root: Path | None = None) -> TerraformMod
             attrs = _attrs(body)
             refs = set(REF_RE.findall(body))
             if kind in ("resource", "data"):
-                model.resources.append(Resource(kind, first, second or "", rel, attrs, refs))
+                model.resources.append(Resource(kind, first, second or "", rel, attrs, refs, body))
             elif kind == "module":
                 model.modules.append(Module(first, _clean_string(attrs.get("source")), rel, attrs, refs))
             elif kind == "variable":
@@ -144,6 +415,7 @@ def parse_terraform(root: Path, source_root: Path | None = None) -> TerraformMod
                 if not any(p.name == first for p in model.providers):
                     model.providers.append(Provider(first))
     _merge_required_providers(model)
+    _extract_iam_policy_facts(model)
     return model
 
 

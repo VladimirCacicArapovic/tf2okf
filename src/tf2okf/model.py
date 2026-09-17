@@ -4,6 +4,28 @@ from typing import Any
 
 
 @dataclass
+class IamStatement:
+    sid: str | None = None
+    effect: str | None = None
+    actions: list[str] = field(default_factory=list)
+    not_actions: list[str] = field(default_factory=list)
+    resources: list[str] = field(default_factory=list)
+    not_resources: list[str] = field(default_factory=list)
+    principals: list[str] = field(default_factory=list)
+
+
+@dataclass
+class IamPolicyFact:
+    address: str
+    source_kind: str
+    name: str
+    file: str
+    statements: list[IamStatement] = field(default_factory=list)
+    raw_policy: str | None = None
+    attachments: list[str] = field(default_factory=list)
+
+
+@dataclass
 class Variable:
     name: str
     type: str | None = None
@@ -30,6 +52,7 @@ class Resource:
     file: str
     attributes: dict[str, str] = field(default_factory=dict)
     references: set[str] = field(default_factory=set)
+    body: str | None = None
 
     @property
     def address(self) -> str:
@@ -64,5 +87,6 @@ class TerraformModel:
     variables: list[Variable] = field(default_factory=list)
     outputs: list[Output] = field(default_factory=list)
     providers: list[Provider] = field(default_factory=list)
+    iam_policies: list[IamPolicyFact] = field(default_factory=list)
     source_files: list[str] = field(default_factory=list)
     terraform_docs_markdown: str | None = None

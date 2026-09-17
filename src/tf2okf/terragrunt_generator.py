@@ -43,6 +43,21 @@ def generate_terragrunt_bundle(model: TerragruntModel, out: Path, cfg: dict) -> 
     for name, title, body in [
         ("architecture.md", "Architecture", "Add Terragrunt stack/unit architecture and design intent here."),
         ("security.md", "Security", "Add project-specific security constraints and rationale here."),
+        (
+            "task-routing.md",
+            "Task Routing",
+            "Add direct pointers for common Terragrunt, IAM, and environment-specific questions here.",
+        ),
+        (
+            "iam-permissions.md",
+            "IAM Permissions",
+            "Add a curated principal -> policy -> actions -> environments matrix here.",
+        ),
+        (
+            "aws-advisories.md",
+            "AWS Advisories",
+            "Track AWS service advisories, deprecations, and remediation notes here.",
+        ),
     ]:
         p = out / "knowledge" / name
         if not p.exists():
@@ -144,7 +159,7 @@ def generate_terragrunt_bundle(model: TerragruntModel, out: Path, cfg: dict) -> 
     _write(gen / "index.md", "\n".join(idx))
     _write(
         out / "index.md",
-        '---\nokf_version: "0.2"\n---\n\n# Terragrunt Knowledge Bundle\n\nStart with [generated knowledge](generated/) and read only the relevant unit.\n\n## Curated knowledge\n\n* [Architecture](knowledge/architecture.md)\n* [Security](knowledge/security.md)\n\nTerragrunt configuration and referenced Terraform/OpenTofu modules remain the implementation source of truth.\n',
+        '---\nokf_version: "0.2"\n---\n\n# Terragrunt Knowledge Bundle\n\nStart with [generated knowledge](generated/) and read only the relevant unit.\n\n## Curated knowledge\n\n* [Architecture](knowledge/architecture.md)\n* [Security](knowledge/security.md)\n* [Task Routing](knowledge/task-routing.md)\n* [IAM Permissions](knowledge/iam-permissions.md)\n* [AWS Advisories](knowledge/aws-advisories.md)\n\nTerragrunt configuration and referenced Terraform/OpenTofu modules remain the implementation source of truth.\n',
     )
     if _ai_enabled(cfg):
         _write_terragrunt_ai_overview(_ai_output_path(out, cfg) / "overview.md", model, cfg)

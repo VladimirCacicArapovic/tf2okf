@@ -11,7 +11,7 @@ tags:
 - aws_subnet
 generated:
   by: tf2okf/0.4.0
-  at: '2026-08-19T22:09:43Z'
+  at: '2026-09-17T19:58:26Z'
 resource: terraform://tfscaffold/module/vpc/aws_subnet.public
 sources:
 - id: source-1
@@ -34,7 +34,10 @@ sources:
 | `cidr_block` | `var.public_subnet_cidrs[count.index]` |
 | `count` | `length(var.public_subnet_cidrs)` |
 | `map_public_ip_on_launch` | `true` |
-| `tags` | `merge(var.tags, {` |
+| `tags` | `merge(var.tags, {
+Name = "${var.environment}-public-${count.index + 1}"
+Tier = "public"
+})` |
 | `vpc_id` | `aws_vpc.this.id` |
 
 ## References

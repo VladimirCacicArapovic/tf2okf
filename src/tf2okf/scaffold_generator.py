@@ -21,7 +21,7 @@ from .generator import (
     _stamp,
     _write,
 )
-from .model import Module, Resource, TerraformModel
+from .model import IamPolicyFact, Module, Resource, TerraformModel
 from .scaffold import TerraformUnit, TfScaffoldModel
 from .security import redact_attribute
 
@@ -29,9 +29,51 @@ _LOGICAL_OUT: Path | None = None
 _MANUAL_DESC_START = "<!-- tf2okf:manual-description-start -->"
 _MANUAL_DESC_END = "<!-- tf2okf:manual-description-end -->"
 _MANUAL_DESC_DEFAULT = (
-    "Add a detailed description of what this component is for, how it is used, and any operational caveats. "
-    "Anything between the marker comments is preserved by `tf2okf generate`."
+    "Add a detailed description of what this component is for, who consumes it, where permissions or access are attached, "
+    "and any operational caveats. Anything between the marker comments is preserved by `tf2okf generate`."
 )
+
+_KNOWLEDGE_FILE_TEMPLATES = [
+    (
+        "architecture.md",
+        "Architecture",
+        ["architecture", "manual"],
+        "Add tfscaffold architecture, component boundaries and design intent here.",
+    ),
+    (
+        "security.md",
+        "Security",
+        ["security", "manual"],
+        "Add project-specific security constraints and rationale here.",
+    ),
+    (
+        "task-routing.md",
+        "Task Routing",
+        ["operations", "manual", "routing"],
+        (
+            "Add direct pointers for common questions, such as IAM permissions, Glue catalog access, "
+            "Lake Formation access, console warnings, or environment-specific troubleshooting."
+        ),
+    ),
+    (
+        "iam-permissions.md",
+        "IAM Permissions",
+        ["iam", "manual", "access"],
+        (
+            "Add a curated principal -> policy -> actions -> environments matrix here. "
+            "Document effective Athena, Glue, Lake Formation, and related access by group, role, or service principal."
+        ),
+    ),
+    (
+        "aws-advisories.md",
+        "AWS Advisories",
+        ["aws", "manual", "advisory"],
+        (
+            "Track AWS lifecycle, deprecation, and health advisories that affect this repository, including required permissions, "
+            "affected policies, and remediation owners."
+        ),
+    ),
+]
 
 
 def _relative_source(concept_path: Path, repo: Path, rel_file: str) -> str:
@@ -197,8 +239,10 @@ def _write_summary(
         "* [Outputs](outputs.md)",
         "* [Providers](providers.md)",
         "* [Dependencies](dependencies.md)",
-        "",
     ]
+    if model.iam_policies:
+        lines.append("* [IAM access](iam-access.md)")
+    lines.append("")
     if model.resources:
         lines += (
             ["## Resources and data sources", ""]
@@ -223,6 +267,49 @@ def _write_summary(
             model.terraform_docs_markdown,
             "",
         ]
+    _write(path, "\n".join(lines))
+
+
+def _write_iam_access(path: Path, model: TerraformModel, repo: Path, unit: TerraformUnit) -> None:
+    meta = _meta(
+        "IAM Access Summary",
+        f"{unit.name} IAM Access",
+        f"Extracted IAM policy actions, resources, and attachment hints for tfscaffold {unit.kind} `{unit.name}`.",
+        [fact.file for fact in model.iam_policies],
+        ["terraform", "tfscaffold", unit.kind, unit.name, "iam", "access"],
+        path,
+        repo,
+    )
+    lines = [_fm(meta), f"# {unit.name} IAM Access", ""]
+    if not model.iam_policies:
+        lines.append("No IAM policy documents or IAM policy resources were detected by the lightweight parser.")
+        _write(path, "\n".join(lines))
+        return
+    lines += [
+        "This page summarizes IAM policy facts extracted from this tfscaffold unit. It is source-only and best-effort, so treat Terraform as the source of truth for merged or computed policies.",
+        "",
+    ]
+    for fact in model.iam_policies:
+        lines += [f"## `{fact.address}`", "", f"- File: `{fact.file}`"]
+        if fact.attachments:
+            lines.append(f"- Attachments: `{', '.join(fact.attachments)}`")
+        if fact.raw_policy:
+            lines.append(f"- Raw policy expression: `{redact_attribute('policy', fact.raw_policy).replace('|', '\\|')}`")
+        lines.append("")
+        if fact.statements:
+            lines += ["| Sid | Effect | Actions | Resources | Principals |", "|---|---|---|---|---|"]
+            for statement in fact.statements:
+                sid = statement.sid or ""
+                effect = statement.effect or "Allow"
+                actions = ", ".join(statement.actions or statement.not_actions) or ""
+                resources = ", ".join(statement.resources or statement.not_resources) or ""
+                principals = ", ".join(statement.principals) or ""
+                lines.append(
+                    f"| `{sid}` | `{effect}` | `{actions.replace('|', '\\|')}` | `{resources.replace('|', '\\|')}` | `{principals.replace('|', '\\|')}` |"
+                )
+            lines.append("")
+        else:
+            lines += ["No statement-level details were extracted.", ""]
     _write(path, "\n".join(lines))
 
 
@@ -371,6 +458,8 @@ def _write_unit(base: Path, unit: TerraformUnit, repo: Path, cfg: dict, manual_d
         _write_providers(base / "providers.md", model, repo, unit)
     if _generation_enabled(cfg, "dependencies", True):
         _write_dependencies(base / "dependencies.md", model, repo, unit)
+    if model.iam_policies:
+        _write_iam_access(base / "iam-access.md", model, repo, unit)
 
 
 def _write_envs(path: Path, model: TfScaffoldModel) -> None:
@@ -498,20 +587,7 @@ def generate_tfscaffold_bundle(model: TfScaffoldModel, out: Path, cfg: dict) -> 
     gen.mkdir(parents=True, exist_ok=True)
     knowledge = out / "knowledge"
     knowledge.mkdir(exist_ok=True)
-    for name, title, tags, body in [
-        (
-            "architecture.md",
-            "Architecture",
-            ["architecture", "manual"],
-            "Add tfscaffold architecture, component boundaries and design intent here.",
-        ),
-        (
-            "security.md",
-            "Security",
-            ["security", "manual"],
-            "Add project-specific security constraints and rationale here.",
-        ),
-    ]:
+    for name, title, tags, body in _KNOWLEDGE_FILE_TEMPLATES:
         p = knowledge / name
         if not p.exists():
             _write(
@@ -569,7 +645,10 @@ def generate_tfscaffold_bundle(model: TfScaffoldModel, out: Path, cfg: dict) -> 
         "Terraform facts.\n\n"
         "## Curated knowledge\n\n"
         "* [Architecture](knowledge/architecture.md)\n"
-        "* [Security](knowledge/security.md)\n\n"
+        "* [Security](knowledge/security.md)\n"
+        "* [Task Routing](knowledge/task-routing.md)\n"
+        "* [IAM Permissions](knowledge/iam-permissions.md)\n"
+        "* [AWS Advisories](knowledge/aws-advisories.md)\n\n"
         "## Source of truth\n\n"
         "Terraform under `components/` and `modules/` remains the implementation source of truth. "
         "Environment/version values under `etc/` are indexed as configuration inputs.\n"

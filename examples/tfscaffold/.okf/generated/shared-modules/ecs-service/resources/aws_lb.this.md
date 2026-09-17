@@ -11,7 +11,7 @@ tags:
 - aws_lb
 generated:
   by: tf2okf/0.4.0
-  at: '2026-08-19T22:09:43Z'
+  at: '2026-09-17T19:58:26Z'
 resource: terraform://tfscaffold/module/ecs-service/aws_lb.this
 sources:
 - id: source-1
@@ -35,7 +35,9 @@ sources:
 | `name` | `substr("${var.environment}-${var.app_name}-alb", 0, 32)` |
 | `security_groups` | `[var.alb_security_group_id]` |
 | `subnets` | `var.public_subnet_ids` |
-| `tags` | `merge(var.tags, {` |
+| `tags` | `merge(var.tags, {
+Name = "${var.environment}-${var.app_name}-alb"
+})` |
 
 ## References
 

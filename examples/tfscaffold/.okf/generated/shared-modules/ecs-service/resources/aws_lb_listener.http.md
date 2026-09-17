@@ -11,7 +11,7 @@ tags:
 - aws_lb_listener
 generated:
   by: tf2okf/0.4.0
-  at: '2026-08-19T22:09:43Z'
+  at: '2026-09-17T19:58:26Z'
 resource: terraform://tfscaffold/module/ecs-service/aws_lb_listener.http
 sources:
 - id: source-1
@@ -33,6 +33,8 @@ sources:
 | `load_balancer_arn` | `aws_lb.this.arn` |
 | `port` | `80` |
 | `protocol` | `"HTTP"` |
+| `target_group_arn` | `aws_lb_target_group.this.arn` |
+| `type` | `"forward"` |
 
 ## References
 

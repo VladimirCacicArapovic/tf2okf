@@ -11,7 +11,7 @@ tags:
 - aws_lb_target_group
 generated:
   by: tf2okf/0.4.0
-  at: '2026-08-19T22:09:43Z'
+  at: '2026-09-17T19:58:26Z'
 resource: terraform://tfscaffold/module/ecs-service/aws_lb_target_group.this
 sources:
 - id: source-1
@@ -31,9 +31,12 @@ sources:
 | Attribute | Expression |
 |---|---|
 | `name` | `substr("${var.environment}-${var.app_name}-tg", 0, 32)` |
+| `path` | `"/health"` |
 | `port` | `var.container_port` |
 | `protocol` | `"HTTP"` |
-| `tags` | `merge(var.tags, {` |
+| `tags` | `merge(var.tags, {
+Name = "${var.environment}-${var.app_name}-tg"
+})` |
 | `target_type` | `"ip"` |
 | `vpc_id` | `var.vpc_id` |
 

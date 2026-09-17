@@ -8,7 +8,7 @@ tags:
 - topology
 generated:
   by: tf2okf/0.4.0
-  at: '2026-08-19T22:09:43Z'
+  at: '2026-09-17T19:58:26Z'
 sources:
 - id: source-1
   resource: ../../components/analytics/main.tf
@@ -29,36 +29,39 @@ sources:
   resource: ../../components/edge/main.tf
   author: process:terraform
 - id: source-7
-  resource: ../../components/internal/main.tf
+  resource: ../../components/iam-access/main.tf
   author: process:terraform
 - id: source-8
-  resource: ../../components/network/main.tf
+  resource: ../../components/internal/main.tf
   author: process:terraform
 - id: source-9
-  resource: ../../components/notifications/main.tf
+  resource: ../../components/network/main.tf
   author: process:terraform
 - id: source-10
-  resource: ../../components/observability/main.tf
+  resource: ../../components/notifications/main.tf
   author: process:terraform
 - id: source-11
-  resource: ../../components/orders/main.tf
+  resource: ../../components/observability/main.tf
   author: process:terraform
 - id: source-12
-  resource: ../../components/payments/main.tf
+  resource: ../../components/orders/main.tf
   author: process:terraform
 - id: source-13
-  resource: ../../components/security/main.tf
+  resource: ../../components/payments/main.tf
   author: process:terraform
 - id: source-14
-  resource: ../../modules/ecs-service/main.tf
+  resource: ../../components/security/main.tf
   author: process:terraform
 - id: source-15
-  resource: ../../modules/security-groups/main.tf
+  resource: ../../modules/ecs-service/main.tf
   author: process:terraform
 - id: source-16
-  resource: ../../modules/tags/main.tf
+  resource: ../../modules/security-groups/main.tf
   author: process:terraform
 - id: source-17
+  resource: ../../modules/tags/main.tf
+  author: process:terraform
+- id: source-18
   resource: ../../modules/vpc/main.tf
   author: process:terraform
 ---
@@ -74,70 +77,71 @@ graph LR
   n3["component/checkout"]
   n4["component/data"]
   n5["component/edge"]
-  n6["component/internal"]
-  n7["component/network"]
-  n8["component/notifications"]
-  n9["component/observability"]
-  n10["component/orders"]
-  n11["component/payments"]
-  n12["component/security"]
-  n13["shared-module/ecs-service"]
-  n14["shared-module/security-groups"]
-  n15["shared-module/tags"]
-  n16["shared-module/vpc"]
-  n0 --> n15
+  n6["component/iam-access"]
+  n7["component/internal"]
+  n8["component/network"]
+  n9["component/notifications"]
+  n10["component/observability"]
+  n11["component/orders"]
+  n12["component/payments"]
+  n13["component/security"]
+  n14["shared-module/ecs-service"]
+  n15["shared-module/security-groups"]
+  n16["shared-module/tags"]
+  n17["shared-module/vpc"]
   n0 --> n16
-  n1 --> n13
-  n1 --> n15
-  n10 --> n13
-  n10 --> n15
-  n11 --> n13
-  n11 --> n15
+  n0 --> n17
+  n1 --> n14
+  n1 --> n16
+  n10 --> n14
+  n10 --> n16
+  n11 --> n14
+  n11 --> n16
   n12 --> n14
-  n12 --> n15
-  n2 --> n13
-  n2 --> n15
-  n3 --> n13
-  n3 --> n15
-  n4 --> n15
+  n12 --> n16
+  n13 --> n15
+  n13 --> n16
+  n2 --> n14
+  n2 --> n16
+  n3 --> n14
+  n3 --> n16
   n4 --> n16
-  n5 --> n14
+  n4 --> n17
   n5 --> n15
-  n6 --> n14
-  n6 --> n15
+  n5 --> n16
   n7 --> n15
   n7 --> n16
-  n8 --> n13
-  n8 --> n15
-  n9 --> n13
-  n9 --> n15
+  n8 --> n16
+  n8 --> n17
+  n9 --> n14
+  n9 --> n16
 ```
 
 ## Edges
 
-- `n0` -> `n15`
 - `n0` -> `n16`
-- `n1` -> `n13`
-- `n1` -> `n15`
-- `n10` -> `n13`
-- `n10` -> `n15`
-- `n11` -> `n13`
-- `n11` -> `n15`
+- `n0` -> `n17`
+- `n1` -> `n14`
+- `n1` -> `n16`
+- `n10` -> `n14`
+- `n10` -> `n16`
+- `n11` -> `n14`
+- `n11` -> `n16`
 - `n12` -> `n14`
-- `n12` -> `n15`
-- `n2` -> `n13`
-- `n2` -> `n15`
-- `n3` -> `n13`
-- `n3` -> `n15`
-- `n4` -> `n15`
+- `n12` -> `n16`
+- `n13` -> `n15`
+- `n13` -> `n16`
+- `n2` -> `n14`
+- `n2` -> `n16`
+- `n3` -> `n14`
+- `n3` -> `n16`
 - `n4` -> `n16`
-- `n5` -> `n14`
+- `n4` -> `n17`
 - `n5` -> `n15`
-- `n6` -> `n14`
-- `n6` -> `n15`
+- `n5` -> `n16`
 - `n7` -> `n15`
 - `n7` -> `n16`
-- `n8` -> `n13`
-- `n8` -> `n15`
-- `n9` -> `n13`
-- `n9` -> `n15`
+- `n8` -> `n16`
+- `n8` -> `n17`
+- `n9` -> `n14`
+- `n9` -> `n16`

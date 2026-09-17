@@ -11,7 +11,7 @@ tags:
 - aws_subnet
 generated:
   by: tf2okf/0.4.0
-  at: '2026-08-19T22:09:43Z'
+  at: '2026-09-17T19:58:26Z'
 resource: terraform://tfscaffold/module/vpc/aws_subnet.private
 sources:
 - id: source-1
@@ -33,7 +33,10 @@ sources:
 | `availability_zone` | `var.availability_zones[count.index]` |
 | `cidr_block` | `var.private_subnet_cidrs[count.index]` |
 | `count` | `length(var.private_subnet_cidrs)` |
-| `tags` | `merge(var.tags, {` |
+| `tags` | `merge(var.tags, {
+Name = "${var.environment}-private-${count.index + 1}"
+Tier = "private"
+})` |
 | `vpc_id` | `aws_vpc.this.id` |
 
 ## References

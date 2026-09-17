@@ -11,7 +11,7 @@ tags:
 - aws_internet_gateway
 generated:
   by: tf2okf/0.4.0
-  at: '2026-08-19T22:09:43Z'
+  at: '2026-09-17T19:58:26Z'
 resource: terraform://tfscaffold/module/vpc/aws_internet_gateway.this
 sources:
 - id: source-1
@@ -30,7 +30,9 @@ sources:
 
 | Attribute | Expression |
 |---|---|
-| `tags` | `merge(var.tags, {` |
+| `tags` | `merge(var.tags, {
+Name = "${var.environment}-igw"
+})` |
 | `vpc_id` | `aws_vpc.this.id` |
 
 ## References

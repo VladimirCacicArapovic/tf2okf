@@ -11,7 +11,7 @@ tags:
 - aws_security_group
 generated:
   by: tf2okf/0.4.0
-  at: '2026-08-19T22:09:43Z'
+  at: '2026-09-17T19:58:26Z'
 resource: terraform://tfscaffold/module/security-groups/aws_security_group.alb
 sources:
 - id: source-1
@@ -30,9 +30,15 @@ sources:
 
 | Attribute | Expression |
 |---|---|
+| `cidr_blocks` | `["0.0.0.0/0"]` |
 | `description` | `"Allow inbound HTTP traffic to the application load balancer"` |
+| `from_port` | `0` |
 | `name` | `"${var.environment}-alb"` |
-| `tags` | `merge(var.tags, {` |
+| `protocol` | `"-1"` |
+| `tags` | `merge(var.tags, {
+Name = "${var.environment}-alb-sg"
+})` |
+| `to_port` | `0` |
 | `vpc_id` | `var.vpc_id` |
 
 ## References

@@ -10,7 +10,7 @@ import yaml
 
 from . import __version__
 from .ai import generate_summary
-from .model import Module, Resource, TerraformModel
+from .model import IamPolicyFact, Module, Resource, TerraformModel
 from .security import redact_attribute
 
 GENERATED_DIR = "generated"
@@ -154,34 +154,50 @@ def generate_bundle(model: TerraformModel, out: Path, config: dict, stable_times
     gen.mkdir(parents=True, exist_ok=True)
     knowledge = out / "knowledge"
     knowledge.mkdir(exist_ok=True)
-    arch = knowledge / "architecture.md"
-    if not arch.exists():
-        _write(
-            arch,
-            _fm(
-                {
-                    "type": "Architecture Knowledge",
-                    "title": "Architecture",
-                    "description": "Human-curated architecture and design intent.",
-                    "tags": ["architecture", "manual"],
-                }
+    for name, title, description, tags, body in [
+        (
+            "architecture.md",
+            "Architecture",
+            "Human-curated architecture and design intent.",
+            ["architecture", "manual"],
+            "Add the architectural **why**, constraints and decisions here. tf2okf will not overwrite this file.",
+        ),
+        (
+            "security.md",
+            "Security",
+            "Human-curated security constraints and rationale.",
+            ["security", "manual"],
+            "Add project-specific security requirements and rationale here. tf2okf will not overwrite this file.",
+        ),
+        (
+            "task-routing.md",
+            "Task Routing",
+            "Human-curated routing for common operational and infrastructure questions.",
+            ["routing", "manual", "operations"],
+            "Add direct pointers for common questions and incident patterns here. tf2okf will not overwrite this file.",
+        ),
+        (
+            "iam-permissions.md",
+            "IAM Permissions",
+            "Human-curated effective IAM permission mappings.",
+            ["iam", "manual", "access"],
+            "Add a curated principal -> policy -> actions -> environments matrix here. tf2okf will not overwrite this file.",
+        ),
+        (
+            "aws-advisories.md",
+            "AWS Advisories",
+            "Human-curated AWS lifecycle and deprecation knowledge.",
+            ["aws", "manual", "advisory"],
+            "Track AWS service advisories, deprecations, and remediation notes here. tf2okf will not overwrite this file.",
+        ),
+    ]:
+        target = knowledge / name
+        if not target.exists():
+            _write(
+                target,
+                _fm({"type": f"{title} Knowledge", "title": title, "description": description, "tags": tags})
+                + f"# {title}\n\n{body}",
             )
-            + "# Architecture\n\nAdd the architectural **why**, constraints and decisions here. tf2okf will not overwrite this file.",
-        )
-    sec = knowledge / "security.md"
-    if not sec.exists():
-        _write(
-            sec,
-            _fm(
-                {
-                    "type": "Security Knowledge",
-                    "title": "Security",
-                    "description": "Human-curated security constraints and rationale.",
-                    "tags": ["security", "manual"],
-                }
-            )
-            + "# Security\n\nAdd project-specific security requirements and rationale here. tf2okf will not overwrite this file.",
-        )
 
     compact = _compact(config)
     if _generation_enabled(config, "resources", True):
@@ -198,6 +214,8 @@ def generate_bundle(model: TerraformModel, out: Path, config: dict, stable_times
         _write_providers(gen / "providers.md", model, compact=compact)
     if _generation_enabled(config, "dependencies", True):
         _write_dependencies(gen / "dependencies.md", model, compact=compact)
+    if model.iam_policies:
+        _write_iam_access(gen / "iam-access.md", model)
     _write_generated_index(gen / "index.md", model, compact=compact)
     _write_root_index(out / "index.md", model)
     if _ai_enabled(config):
@@ -355,6 +373,49 @@ def _write_dependencies(path: Path, model: TerraformModel, compact: bool = False
     _write(path, "\n".join(lines))
 
 
+def _write_iam_access(path: Path, model: TerraformModel) -> None:
+    meta = _concept_meta(
+        "IAM Access Summary",
+        "IAM Access Summary",
+        "Extracted IAM policy actions, resources, and attachment hints.",
+        [fact.file for fact in model.iam_policies],
+        ["terraform", "iam", "access"],
+        source_prefix="../../",
+    )
+    lines = [_fm(meta), "# IAM Access Summary", ""]
+    if not model.iam_policies:
+        lines.append("No IAM policy documents or IAM policy resources were detected by the lightweight parser.")
+        _write(path, "\n".join(lines))
+        return
+    lines += [
+        "This page summarizes IAM policy facts extracted from Terraform source. It is source-only and best-effort, so treat Terraform as the final source of truth for conditional logic or merged policies.",
+        "",
+    ]
+    for fact in model.iam_policies:
+        lines += [f"## `{fact.address}`", "", f"- Source kind: `{fact.source_kind}`", f"- File: `{fact.file}`"]
+        if fact.attachments:
+            lines.append(f"- Attachments: `{', '.join(fact.attachments)}`")
+        if fact.raw_policy:
+            lines.append(f"- Raw policy expression: `{redact_attribute('policy', fact.raw_policy).replace('|', '\\|')}`")
+        lines.append("")
+        if fact.statements:
+            lines += ["| Sid | Effect | Actions | Resources | Principals |", "|---|---|---|---|---|"]
+            for statement in fact.statements:
+                sid = statement.sid or ""
+                effect = statement.effect or "Allow"
+                actions = ", ".join(statement.actions or statement.not_actions) or ""
+                resources = ", ".join(statement.resources or statement.not_resources) or ""
+                principals = ", ".join(statement.principals) or ""
+                lines.append(
+                    f"| `{sid}` | `{effect}` | `{actions.replace('|', '\\|')}` | `{resources.replace('|', '\\|')}` | `{principals.replace('|', '\\|')}` |"
+                )
+            lines.append("")
+        else:
+            lines += ["No statement-level details were extracted.", ""]
+
+    _write(path, "\n".join(lines))
+
+
 def _write_generated_index(path: Path, model: TerraformModel, compact: bool = False) -> None:
     lines = ["# Generated Terraform Knowledge", ""]
     if compact:
@@ -367,14 +428,16 @@ def _write_generated_index(path: Path, model: TerraformModel, compact: bool = Fa
         ]
     else:
         lines += [
-            "Machine-generated summaries of Terraform structure, interfaces, providers, and dependencies.",
+            "Machine-generated summaries of Terraform structure, interfaces, providers, dependencies, and detected IAM facts.",
             "",
             "* [Inputs](inputs.md) - Terraform input variables.",
             "* [Outputs](outputs.md) - Terraform outputs.",
             "* [Providers](providers.md) - Terraform providers.",
             "* [Dependencies](dependencies.md) - Extracted reference graph.",
-            "",
         ]
+        if model.iam_policies:
+            lines.append("* [IAM access](iam-access.md) - Extracted policy actions, resources, and attachment hints.")
+        lines.append("")
     if model.resources:
         lines += (
             ["## Resources", ""]
@@ -414,7 +477,10 @@ def _write_root_index(path: Path, model: TerraformModel) -> None:
         "* [Terraform knowledge](generated/) - Resources, modules, inputs, outputs, providers and dependencies.\n\n"
         "## Curated knowledge\n\n"
         "* [Architecture](knowledge/architecture.md) - Architectural intent and constraints.\n"
-        "* [Security](knowledge/security.md) - Security requirements and rationale.\n\n"
+        "* [Security](knowledge/security.md) - Security requirements and rationale.\n"
+        "* [Task Routing](knowledge/task-routing.md) - Direct pointers for common questions and incidents.\n"
+        "* [IAM Permissions](knowledge/iam-permissions.md) - Principal to policy to action mapping.\n"
+        "* [AWS Advisories](knowledge/aws-advisories.md) - Service lifecycle and remediation notes.\n\n"
         "## Source of truth\n\n"
         "Terraform source remains the implementation source of truth. If generated knowledge and Terraform differ, regenerate with `tf2okf generate`.\n"
     )

@@ -10,7 +10,7 @@ tags:
 - module-call
 generated:
   by: tf2okf/0.4.0
-  at: '2026-08-19T22:09:43Z'
+  at: '2026-09-17T19:58:26Z'
 resource: terraform://tfscaffold/component/catalog/module.ecs_service
 sources:
 - id: source-1

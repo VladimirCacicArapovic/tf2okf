@@ -11,7 +11,7 @@ tags:
 - aws_ecs_task_definition
 generated:
   by: tf2okf/0.4.0
-  at: '2026-08-19T22:09:43Z'
+  at: '2026-09-17T19:58:26Z'
 resource: terraform://tfscaffold/module/ecs-service/aws_ecs_task_definition.this
 sources:
 - id: source-1
@@ -30,13 +30,27 @@ sources:
 
 | Attribute | Expression |
 |---|---|
-| `container_definitions` | `jsonencode([` |
+| `container_definitions` | `jsonencode([
+{
+name  = var.app_name
+image = var.container_image
+portMappings = [
+{
+containerPort = var.container_port
+protocol      = "tcp"
+}
+]
+essential = true
+}
+])` |
 | `cpu` | `"256"` |
 | `family` | `"${var.environment}-${var.app_name}"` |
 | `memory` | `"512"` |
 | `network_mode` | `"awsvpc"` |
 | `requires_compatibilities` | `["FARGATE"]` |
-| `tags` | `merge(var.tags, {` |
+| `tags` | `merge(var.tags, {
+Name = "${var.environment}-${var.app_name}-task"
+})` |
 
 ## References
 

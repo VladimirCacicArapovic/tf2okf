@@ -14,6 +14,9 @@ This repository uses tfscaffold. Start with the generated component index, then 
 
 * [Architecture](knowledge/architecture.md)
 * [Security](knowledge/security.md)
+* [Task Routing](knowledge/task-routing.md)
+* [IAM Permissions](knowledge/iam-permissions.md)
+* [AWS Advisories](knowledge/aws-advisories.md)
 
 ## Source of truth
 

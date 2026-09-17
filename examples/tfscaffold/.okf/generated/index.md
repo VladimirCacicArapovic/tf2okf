@@ -1,6 +1,6 @@
 # Generated tfscaffold Knowledge
 
-Components: **13**  
+Components: **14**  
 Shared modules: **4**
 
 * [Environments](environments.md) - Environment/version tfvars discovered under `etc/`.
@@ -14,6 +14,7 @@ Shared modules: **4**
 * [checkout](components/checkout/) - independent Terraform root module.
 * [data](components/data/) - independent Terraform root module.
 * [edge](components/edge/) - independent Terraform root module.
+* [iam-access](components/iam-access/) - independent Terraform root module.
 * [internal](components/internal/) - independent Terraform root module.
 * [network](components/network/) - independent Terraform root module.
 * [notifications](components/notifications/) - independent Terraform root module.
