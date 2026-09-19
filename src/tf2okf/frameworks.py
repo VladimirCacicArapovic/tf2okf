@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from .model import TerraformModel
 from .parser import enrich_from_terraform_docs, parse_terraform, terraform_docs_json, terraform_docs_markdown
@@ -129,6 +130,52 @@ def _extract_block(text: str, keyword: str) -> list[str]:
     return blocks
 
 
+def _clean_terragrunt_source(source: str | None) -> str | None:
+    if not source:
+        return None
+    value = source.strip().strip('"\'')
+    if not value or any(token in value for token in ("${", "get_", "find_in_parent_folders(", "path_relative_")):
+        return None
+    return value
+
+
+def _resolve_terragrunt_module_dir(unit_dir: Path, source: str | None) -> Path | None:
+    source_value = _clean_terragrunt_source(source)
+    if not source_value:
+        return None
+    raw_source = source_value
+    if raw_source.startswith(("git::", "tfr://", "github.com/", "git@", "ssh://", "https://", "http://")):
+        return None
+    source_without_prefix = raw_source[7:] if raw_source.startswith("file://") else raw_source
+    parsed = urlparse(source_without_prefix)
+    if parsed.scheme and parsed.scheme != "file":
+        return None
+    path_part = source_without_prefix
+    if parsed.scheme == "file":
+        path_part = parsed.path or ""
+    elif parsed.query and "//" in source_without_prefix:
+        path_part = source_without_prefix.split("?", 1)[0]
+    subdir = ""
+    if "//" in path_part:
+        base_part, subdir = path_part.split("//", 1)
+    else:
+        base_part = path_part
+    if parsed.query:
+        query = parse_qs(parsed.query)
+        if "subdir" in query and query["subdir"]:
+            subdir = query["subdir"][0]
+    base_part = base_part.strip()
+    subdir = subdir.strip().strip("/")
+    if not base_part:
+        return None
+    candidate = Path(base_part)
+    if not candidate.is_absolute():
+        candidate = (unit_dir / candidate).resolve()
+    if subdir:
+        candidate = candidate / Path(subdir)
+    return candidate if candidate.exists() and candidate.is_dir() else None
+
+
 def discover_terragrunt(repo: Path, cfg: dict) -> TerragruntModel:
     tcfg = cfg.get("terragrunt", {})
     ignore = set(tcfg.get("ignore_dirs", [".git", ".terraform", ".terragrunt-cache", ".terragrunt-stack", ".okf"]))
@@ -160,11 +207,12 @@ def discover_terragrunt(repo: Path, cfg: dict) -> TerragruntModel:
             if m:
                 includes.append(m.group(1).strip())
         tfmodel = None
-        if any(p.parent.glob("*.tf")):
-            tfmodel = parse_terraform(p.parent, source_root=repo)
+        terraform_root = p.parent if any(p.parent.glob("*.tf")) else _resolve_terragrunt_module_dir(p.parent, source)
+        if terraform_root and any(terraform_root.glob("*.tf")):
+            tfmodel = parse_terraform(terraform_root, source_root=repo)
             if use_docs:
-                tfmodel = enrich_from_terraform_docs(tfmodel, terraform_docs_json(p.parent))
-                tfmodel.terraform_docs_markdown = terraform_docs_markdown(p.parent)
+                tfmodel = enrich_from_terraform_docs(tfmodel, terraform_docs_json(terraform_root))
+                tfmodel.terraform_docs_markdown = terraform_docs_markdown(terraform_root)
         result.units.append(
             TerragruntUnit(
                 name=unit_rel if unit_rel != "." else p.parent.name or "root",

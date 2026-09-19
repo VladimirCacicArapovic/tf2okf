@@ -11,7 +11,7 @@ tags:
 - aws_security_group
 generated:
   by: tf2okf/0.4.0
-  at: '2026-09-17T19:58:26Z'
+  at: '2026-09-19T10:27:39Z'
 resource: terraform://tfscaffold/module/security-groups/aws_security_group.alb
 sources:
 - id: source-1

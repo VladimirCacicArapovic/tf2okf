@@ -9,7 +9,7 @@ tags:
 - security
 generated:
   by: tf2okf/0.4.0
-  at: '2026-09-17T19:58:26Z'
+  at: '2026-09-19T10:27:39Z'
 sources:
 - id: source-1
   resource: ../../../../components/security/main.tf
@@ -33,7 +33,7 @@ Source directory: `components/security`
 ## Component description
 
 <!-- tf2okf:manual-description-start -->
-Add a detailed description of what this component is for, how it is used, and any operational caveats. Anything between the marker comments is preserved by `tf2okf generate`.
+Add a detailed description of what this component is for, who consumes it, where permissions or access are attached, and any operational caveats. Anything between the marker comments is preserved by `tf2okf generate`.
 <!-- tf2okf:manual-description-end -->
 
 ## Knowledge

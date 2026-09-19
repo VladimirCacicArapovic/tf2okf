@@ -11,7 +11,7 @@ tags:
 - aws_ecs_task_definition
 generated:
   by: tf2okf/0.4.0
-  at: '2026-09-17T19:58:26Z'
+  at: '2026-09-19T10:27:39Z'
 resource: terraform://tfscaffold/module/ecs-service/aws_ecs_task_definition.this
 sources:
 - id: source-1

@@ -430,13 +430,15 @@ def _write_generated_index(path: Path, model: TerraformModel, compact: bool = Fa
         lines += [
             "Machine-generated summaries of Terraform structure, interfaces, providers, dependencies, and detected IAM facts.",
             "",
-            "* [Inputs](inputs.md) - Terraform input variables.",
-            "* [Outputs](outputs.md) - Terraform outputs.",
-            "* [Providers](providers.md) - Terraform providers.",
-            "* [Dependencies](dependencies.md) - Extracted reference graph.",
+            "## Read first",
+            "",
+            "* [Inputs](inputs.md) - Start here for variable, tfvars, and required-value questions.",
+            "* [Outputs](outputs.md) - Start here for integration and downstream-consumer questions.",
+            "* [Providers](providers.md) - Start here for cloud/provider ownership questions.",
+            "* [Dependencies](dependencies.md) - Start here for resource and module relationship questions.",
         ]
         if model.iam_policies:
-            lines.append("* [IAM access](iam-access.md) - Extracted policy actions, resources, and attachment hints.")
+            lines.append("* [IAM access](iam-access.md) - Start here for policy actions, resources, and attachment hints.")
         lines.append("")
     if model.resources:
         lines += (
@@ -473,6 +475,10 @@ def _write_root_index(path: Path, model: TerraformModel) -> None:
     body = (
         "# Terraform Knowledge Bundle\n\n"
         "Start here. Machine-generated Terraform facts live under `generated/`; human-maintained context lives under `knowledge/`.\n\n"
+        "## Read order\n\n"
+        "1. Open `generated/index.md` and route to the smallest relevant concept.\n"
+        "2. Use `knowledge/task-routing.md` and `knowledge/iam-permissions.md` for common operational questions.\n"
+        "3. Read Terraform source only after OKF has identified the likely edit surface or when generated facts are incomplete.\n\n"
         "## Generated knowledge\n\n"
         "* [Terraform knowledge](generated/) - Resources, modules, inputs, outputs, providers and dependencies.\n\n"
         "## Curated knowledge\n\n"

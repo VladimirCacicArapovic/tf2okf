@@ -10,6 +10,22 @@ from .ai import generate_summary
 from .frameworks import TerragruntModel
 from .generator import _ai_enabled, _ai_output_path, _compact, _fm, _normalised_hash, _stamp, _write
 
+
+def _resource_type_counts(terraform) -> list[tuple[str, int]]:
+    counts: dict[str, int] = {}
+    for resource in terraform.resources:
+        counts[resource.type] = counts.get(resource.type, 0) + 1
+    return sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+
+
+def _sample_names(items: list[str], limit: int = 8) -> str:
+    if not items:
+        return "none"
+    names = sorted(dict.fromkeys(items))
+    sample = names[:limit]
+    suffix = "" if len(names) <= limit else ", ..."
+    return ", ".join(sample) + suffix
+
 _LOGICAL_OUT: Path | None = None
 
 
@@ -87,8 +103,12 @@ def generate_terragrunt_bundle(model: TerragruntModel, out: Path, cfg: dict) -> 
             _fm(meta),
             f"# {u.name}",
             "",
+            "Read this page first to identify whether a requested change belongs in Terragrunt wiring or in the referenced Terraform module.",
+            "",
             f"- Config: `{u.config_file}`",
             f"- Terraform source: `{u.terraform_source or 'not statically detected'}`",
+            f"- Includes: **{len(u.includes)}**",
+            f"- Terragrunt dependencies: **{len(u.dependencies)}**",
             "",
         ]
         if u.dependencies:
@@ -96,6 +116,7 @@ def generate_terragrunt_bundle(model: TerragruntModel, out: Path, cfg: dict) -> 
         if u.includes and not compact:
             lines += ["## Includes", ""] + [f"- `{x}`" for x in u.includes] + [""]
         if u.terraform:
+            resource_type_counts = _resource_type_counts(u.terraform)
             lines += [
                 "## Local Terraform facts",
                 "",
@@ -103,6 +124,48 @@ def generate_terragrunt_bundle(model: TerragruntModel, out: Path, cfg: dict) -> 
                 f"- Module calls: **{len(u.terraform.modules)}**",
                 f"- Inputs: **{len(u.terraform.variables)}**",
                 f"- Outputs: **{len(u.terraform.outputs)}**",
+                f"- Providers: **{len(u.terraform.providers)}**",
+                "",
+            ]
+            if u.terraform.variables:
+                lines += [
+                    "### Key inputs",
+                    "",
+                    f"`{_sample_names([variable.name for variable in u.terraform.variables])}`",
+                    "",
+                ]
+            if u.terraform.outputs:
+                lines += [
+                    "### Key outputs",
+                    "",
+                    f"`{_sample_names([output.name for output in u.terraform.outputs])}`",
+                    "",
+                ]
+            if u.terraform.modules:
+                lines += [
+                    "### Module calls",
+                    "",
+                    f"`{_sample_names([module.address for module in u.terraform.modules])}`",
+                    "",
+                ]
+            if resource_type_counts:
+                lines += ["### Top resource types", "", "| Type | Count |", "|---|---|"]
+                for resource_type, count in resource_type_counts[:10]:
+                    lines.append(f"| `{resource_type}` | {count} |")
+                lines.append("")
+            if u.terraform.iam_policies:
+                lines += [
+                    "### IAM signals",
+                    "",
+                    f"- IAM policy facts detected: **{len(u.terraform.iam_policies)}**",
+                    "- Check generated IAM summaries or source before changing effective permissions.",
+                    "",
+                ]
+        else:
+            lines += [
+                "## Local Terraform facts",
+                "",
+                "Terraform source was not resolved statically for this unit, so use `terragrunt.hcl` relationships and source configuration to continue investigation.",
                 "",
             ]
         _write(path, "\n".join(lines))
@@ -141,10 +204,17 @@ def generate_terragrunt_bundle(model: TerragruntModel, out: Path, cfg: dict) -> 
         [
             "# Generated Terragrunt Knowledge",
             "",
+            "Use this index to route questions to the smallest useful Terragrunt unit or shared definition before reading source.",
+            "",
             f"Units: **{len(model.units)}**  ",
             f"Stack definitions: **{len(model.stack_files)}**",
+            f"Shared HCL files: **{len(model.shared_hcl_files)}**",
             "",
-            "* [Dependency graph](dependencies.md)",
+            "## Read first",
+            "",
+            "* [Dependency graph](dependencies.md) - For cross-unit relationships and deployment order clues.",
+            "* `knowledge/task-routing.md` - For common operational and investigation paths.",
+            "* `knowledge/iam-permissions.md` - For curated effective permission mappings.",
             "",
             "## Units",
             "",

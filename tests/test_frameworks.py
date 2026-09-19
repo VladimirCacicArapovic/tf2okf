@@ -40,6 +40,40 @@ def test_detect_terragrunt_and_generate(tmp_path: Path):
     assert "Terragrunt" in (tmp_path / ".github/copilot-instructions.md").read_text()
 
 
+def test_discover_terragrunt_resolves_local_source_module(tmp_path: Path):
+    module_dir = tmp_path / "modules" / "vpc"
+    module_dir.mkdir(parents=True)
+    (module_dir / "main.tf").write_text(
+        'variable "cidr" { type = string }\nresource "null_resource" "vpc" {}\noutput "vpc_id" { value = null_resource.vpc.id }\n'
+    )
+    unit_dir = tmp_path / "live" / "dev" / "vpc"
+    unit_dir.mkdir(parents=True)
+    (unit_dir / "terragrunt.hcl").write_text('terraform {\n  source = "../../../modules//vpc"\n}\n')
+
+    model = discover_terragrunt(tmp_path, load(tmp_path))
+
+    assert len(model.units) == 1
+    unit = model.units[0]
+    assert unit.terraform_source == "../../../modules//vpc"
+    assert unit.terraform is not None
+    assert [variable.name for variable in unit.terraform.variables] == ["cidr"]
+    assert [output.name for output in unit.terraform.outputs] == ["vpc_id"]
+    assert any(resource.address == "null_resource.vpc" for resource in unit.terraform.resources)
+
+
+def test_discover_terragrunt_skips_remote_module_source(tmp_path: Path):
+    unit_dir = tmp_path / "live" / "dev" / "app"
+    unit_dir.mkdir(parents=True)
+    (unit_dir / "terragrunt.hcl").write_text(
+        'terraform {\n  source = "git::https://example.com/modules.git//app?ref=v1"\n}\n'
+    )
+
+    model = discover_terragrunt(tmp_path, load(tmp_path))
+
+    assert len(model.units) == 1
+    assert model.units[0].terraform is None
+
+
 def test_explicit_framework_override(tmp_path: Path):
     (tmp_path / "components").mkdir()
     (tmp_path / "bin").mkdir()
