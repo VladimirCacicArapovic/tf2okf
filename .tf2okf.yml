@@ -20,7 +20,7 @@ terragrunt:
   - .okf
 sources:
   terraform: true
-  terraform_docs: true
+  terraform_docs: false
   readme: true
 output:
   directory: .okf

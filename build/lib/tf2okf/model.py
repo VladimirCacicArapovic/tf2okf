@@ -2,6 +2,29 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+
+@dataclass
+class IamStatement:
+    sid: str | None = None
+    effect: str | None = None
+    actions: list[str] = field(default_factory=list)
+    not_actions: list[str] = field(default_factory=list)
+    resources: list[str] = field(default_factory=list)
+    not_resources: list[str] = field(default_factory=list)
+    principals: list[str] = field(default_factory=list)
+
+
+@dataclass
+class IamPolicyFact:
+    address: str
+    source_kind: str
+    name: str
+    file: str
+    statements: list[IamStatement] = field(default_factory=list)
+    raw_policy: str | None = None
+    attachments: list[str] = field(default_factory=list)
+
+
 @dataclass
 class Variable:
     name: str
@@ -11,6 +34,7 @@ class Variable:
     sensitive: bool = False
     file: str | None = None
 
+
 @dataclass
 class Output:
     name: str
@@ -18,6 +42,7 @@ class Output:
     value: str | None = None
     sensitive: bool = False
     file: str | None = None
+
 
 @dataclass
 class Resource:
@@ -27,10 +52,12 @@ class Resource:
     file: str
     attributes: dict[str, str] = field(default_factory=dict)
     references: set[str] = field(default_factory=set)
+    body: str | None = None
 
     @property
     def address(self) -> str:
         return f"data.{self.type}.{self.name}" if self.kind == "data" else f"{self.type}.{self.name}"
+
 
 @dataclass
 class Module:
@@ -44,11 +71,13 @@ class Module:
     def address(self) -> str:
         return f"module.{self.name}"
 
+
 @dataclass
 class Provider:
     name: str
     source: str | None = None
     version: str | None = None
+
 
 @dataclass
 class TerraformModel:
@@ -58,5 +87,6 @@ class TerraformModel:
     variables: list[Variable] = field(default_factory=list)
     outputs: list[Output] = field(default_factory=list)
     providers: list[Provider] = field(default_factory=list)
+    iam_policies: list[IamPolicyFact] = field(default_factory=list)
     source_files: list[str] = field(default_factory=list)
     terraform_docs_markdown: str | None = None

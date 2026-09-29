@@ -19,7 +19,7 @@ DEFAULT = {
         "include_modules": True,
     },
     "terragrunt": {"ignore_dirs": [".git", ".terraform", ".terragrunt-cache", ".terragrunt-stack", ".okf"]},
-    "sources": {"terraform": True, "terraform_docs": True, "readme": True},
+    "sources": {"terraform": True, "terraform_docs": False, "readme": True},
     "output": {"directory": ".okf"},
     "generation": {
         "profile": "full",

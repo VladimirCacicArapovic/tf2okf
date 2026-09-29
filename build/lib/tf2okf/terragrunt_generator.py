@@ -1,68 +1,301 @@
 from __future__ import annotations
-from pathlib import Path
-import hashlib, json, os
-from . import __version__
-from .frameworks import TerragruntModel
-from .generator import _fm, _write, _stamp, _normalised_hash
 
-_LOGICAL_OUT: Path | None=None
+import hashlib
+import json
+import os
+from pathlib import Path
+
+from . import __version__
+from .ai import generate_summary
+from .frameworks import TerragruntModel
+from .generator import _ai_enabled, _ai_output_path, _compact, _fm, _normalised_hash, _stamp, _write
+
+
+def _resource_type_counts(terraform) -> list[tuple[str, int]]:
+    counts: dict[str, int] = {}
+    for resource in terraform.resources:
+        counts[resource.type] = counts.get(resource.type, 0) + 1
+    return sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+
+
+def _sample_names(items: list[str], limit: int = 8) -> str:
+    if not items:
+        return "none"
+    names = sorted(dict.fromkeys(items))
+    sample = names[:limit]
+    suffix = "" if len(names) <= limit else ", ..."
+    return ", ".join(sample) + suffix
+
+_LOGICAL_OUT: Path | None = None
+
 
 def _rel_source(concept: Path, repo: Path, rel: str) -> str:
-    target=(repo/rel).resolve(); logical=concept.resolve()
+    target = (repo / rel).resolve()
+    logical = concept.resolve()
     if _LOGICAL_OUT is not None:
-        try: logical.relative_to(_LOGICAL_OUT.resolve())
+        try:
+            logical.relative_to(_LOGICAL_OUT.resolve())
         except ValueError:
-            parts=concept.parts
-            if 'generated' in parts:
-                idx=len(parts)-1-list(reversed(parts)).index('generated'); logical=_LOGICAL_OUT/Path(*parts[idx:])
-    return Path(os.path.relpath(target,logical.parent.resolve())).as_posix()
+            parts = concept.parts
+            if "generated" in parts:
+                idx = len(parts) - 1 - list(reversed(parts)).index("generated")
+                logical = _LOGICAL_OUT / Path(*parts[idx:])
+    return Path(os.path.relpath(target, logical.parent.resolve())).as_posix()
 
-def generate_terragrunt_bundle(model: TerragruntModel,out: Path,cfg: dict) -> None:
+
+def generate_terragrunt_bundle(model: TerragruntModel, out: Path, cfg: dict) -> None:
     global _LOGICAL_OUT
-    _LOGICAL_OUT=(model.root/cfg.get('output',{}).get('directory','.okf')).resolve()
-    out.mkdir(parents=True,exist_ok=True); gen=out/'generated'
+    _LOGICAL_OUT = (model.root / cfg.get("output", {}).get("directory", ".okf")).resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    gen = out / "generated"
     if gen.exists():
-        for p in sorted(gen.rglob('*'),reverse=True):
-            if p.is_file(): p.unlink()
-            elif p.is_dir(): p.rmdir()
-    gen.mkdir(parents=True,exist_ok=True); (out/'knowledge').mkdir(exist_ok=True)
-    for name,title,body in [('architecture.md','Architecture','Add Terragrunt stack/unit architecture and design intent here.'),('security.md','Security','Add project-specific security constraints and rationale here.')]:
-        p=out/'knowledge'/name
-        if not p.exists(): _write(p,_fm({'type':f'{title} Knowledge','title':title,'tags':['manual',title.lower()]})+f'# {title}\n\n{body}\n\ntf2okf will not overwrite this file.\n')
-    links=[]
-    for i,u in enumerate(model.units,1):
-        slug=f'unit-{i:03d}'
-        path=gen/'units'/slug/'index.md'
-        files=[u.config_file]+(u.terraform.source_files if u.terraform else [])
-        meta={'type':'Terragrunt Unit','title':u.name,'description':f'Terragrunt unit at `{u.name}`.','tags':['terragrunt','unit'],'generated':{'by':f'tf2okf/{__version__}','at':_stamp()},'sources':[{'id':f'source-{n+1}','resource':_rel_source(path,model.root,f),'author':'process:terraform'} for n,f in enumerate(files)]}
-        lines=[_fm(meta),f'# {u.name}','',f'- Config: `{u.config_file}`',f'- Terraform source: `{u.terraform_source or "not statically detected"}`','']
-        if u.dependencies: lines += ['## Terragrunt dependencies','']+[f'- `{d}`' for d in u.dependencies]+['']
-        if u.includes: lines += ['## Includes','']+[f'- `{x}`' for x in u.includes]+['']
+        for p in sorted(gen.rglob("*"), reverse=True):
+            if p.is_file():
+                p.unlink()
+            elif p.is_dir():
+                p.rmdir()
+    gen.mkdir(parents=True, exist_ok=True)
+    (out / "knowledge").mkdir(exist_ok=True)
+    curated_index = out / "knowledge" / "index.md"
+    if not curated_index.exists():
+        _write(
+            curated_index,
+            _fm(
+                {
+                    "type": "Knowledge Index",
+                    "title": "Curated Knowledge Router",
+                    "description": "Human-curated entry point for manual OKF guidance.",
+                    "tags": ["knowledge", "manual", "routing"],
+                }
+            )
+            + "# Curated Knowledge Router\n\n"
+            + "Use this page to route into the smallest human-maintained note before reading broader documentation.\n\n"
+            + "| Question | Read |\n"
+            + "|---|---|\n"
+            + "| What is the intended architecture or boundary? | [Architecture](architecture.md) |\n"
+            + "| What security rule or rationale applies? | [Security](security.md) |\n"
+            + "| Where should I start for a recurring task or incident? | [Task Routing](task-routing.md) |\n"
+            + "| Which principals effectively have access? | [IAM Permissions](iam-permissions.md) |\n"
+            + "| Is there an AWS lifecycle or deprecation caveat? | [AWS Advisories](aws-advisories.md) |\n"
+        )
+    for name, title, body in [
+        ("architecture.md", "Architecture", "Add Terragrunt stack/unit architecture and design intent here."),
+        ("security.md", "Security", "Add project-specific security constraints and rationale here."),
+        (
+            "task-routing.md",
+            "Task Routing",
+            "Add direct pointers for common Terragrunt, IAM, and environment-specific questions here.",
+        ),
+        (
+            "iam-permissions.md",
+            "IAM Permissions",
+            "Add a curated principal -> policy -> actions -> environments matrix here.",
+        ),
+        (
+            "aws-advisories.md",
+            "AWS Advisories",
+            "Track AWS service advisories, deprecations, and remediation notes here.",
+        ),
+    ]:
+        p = out / "knowledge" / name
+        if not p.exists():
+            _write(
+                p,
+                _fm({"type": f"{title} Knowledge", "title": title, "tags": ["manual", title.lower()]})
+                + f"# {title}\n\n{body}\n\ntf2okf will not overwrite this file.\n",
+            )
+    compact = _compact(cfg)
+    links = []
+    for i, u in enumerate(model.units, 1):
+        slug = f"unit-{i:03d}"
+        path = gen / "units" / slug / "index.md"
+        files = [u.config_file] + (u.terraform.source_files if u.terraform else [])
+        meta = {
+            "type": "Terragrunt Unit",
+            "title": u.name,
+            "description": f"Terragrunt unit at `{u.name}`.",
+            "tags": ["terragrunt", "unit"],
+            "generated": {"by": f"tf2okf/{__version__}", "at": _stamp()},
+            "sources": [
+                {"id": f"source-{n + 1}", "resource": _rel_source(path, model.root, f), "author": "process:terraform"}
+                for n, f in enumerate(files)
+            ],
+        }
+        lines = [
+            _fm(meta),
+            f"# {u.name}",
+            "",
+            "Read this page first to identify whether a requested change belongs in Terragrunt wiring or in the referenced Terraform module.",
+            "",
+            f"- Config: `{u.config_file}`",
+            f"- Terraform source: `{u.terraform_source or 'not statically detected'}`",
+            f"- Includes: **{len(u.includes)}**",
+            f"- Terragrunt dependencies: **{len(u.dependencies)}**",
+            "",
+        ]
+        if u.dependencies:
+            lines += ["## Terragrunt dependencies", ""] + [f"- `{d}`" for d in u.dependencies] + [""]
+        if u.includes and not compact:
+            lines += ["## Includes", ""] + [f"- `{x}`" for x in u.includes] + [""]
         if u.terraform:
-            lines += ['## Local Terraform facts','',f'- Resources/data sources: **{len(u.terraform.resources)}**',f'- Module calls: **{len(u.terraform.modules)}**',f'- Inputs: **{len(u.terraform.variables)}**',f'- Outputs: **{len(u.terraform.outputs)}**','']
-        _write(path,'\n'.join(lines)); links.append(f'* [{u.name}](units/{slug}/)')
+            resource_type_counts = _resource_type_counts(u.terraform)
+            lines += [
+                "## Local Terraform facts",
+                "",
+                f"- Resources/data sources: **{len(u.terraform.resources)}**",
+                f"- Module calls: **{len(u.terraform.modules)}**",
+                f"- Inputs: **{len(u.terraform.variables)}**",
+                f"- Outputs: **{len(u.terraform.outputs)}**",
+                f"- Providers: **{len(u.terraform.providers)}**",
+                "",
+            ]
+            if u.terraform.variables:
+                lines += [
+                    "### Key inputs",
+                    "",
+                    f"`{_sample_names([variable.name for variable in u.terraform.variables])}`",
+                    "",
+                ]
+            if u.terraform.outputs:
+                lines += [
+                    "### Key outputs",
+                    "",
+                    f"`{_sample_names([output.name for output in u.terraform.outputs])}`",
+                    "",
+                ]
+            if u.terraform.modules:
+                lines += [
+                    "### Module calls",
+                    "",
+                    f"`{_sample_names([module.address for module in u.terraform.modules])}`",
+                    "",
+                ]
+            if resource_type_counts:
+                lines += ["### Top resource types", "", "| Type | Count |", "|---|---|"]
+                for resource_type, count in resource_type_counts[:10]:
+                    lines.append(f"| `{resource_type}` | {count} |")
+                lines.append("")
+            if u.terraform.iam_policies:
+                lines += [
+                    "### IAM signals",
+                    "",
+                    f"- IAM policy facts detected: **{len(u.terraform.iam_policies)}**",
+                    "- Check generated IAM summaries or source before changing effective permissions.",
+                    "",
+                ]
+        else:
+            lines += [
+                "## Local Terraform facts",
+                "",
+                "Terraform source was not resolved statically for this unit, so use `terragrunt.hcl` relationships and source configuration to continue investigation.",
+                "",
+            ]
+        _write(path, "\n".join(lines))
+        links.append(f"* [{u.name}](units/{slug}/)")
     # Cross-unit graph from static config_path values.
-    gp=gen/'dependencies.md'; meta={'type':'Terragrunt Dependency Graph','title':'Terragrunt Dependencies','tags':['terragrunt','dependencies'],'generated':{'by':f'tf2okf/{__version__}','at':_stamp()}}
-    lines=[_fm(meta),'# Terragrunt Dependencies','','Static `dependency.config_path` relationships detected from unit configs.','', '```mermaid','graph TD']
-    ids={u.name:f'u{i}' for i,u in enumerate(model.units)}
-    for name,id_ in ids.items(): lines.append(f'  {id_}["{name}"]')
+    gp = gen / "dependencies.md"
+    meta = {
+        "type": "Terragrunt Dependency Graph",
+        "title": "Terragrunt Dependencies",
+        "tags": ["terragrunt", "dependencies"],
+        "generated": {"by": f"tf2okf/{__version__}", "at": _stamp()},
+    }
+    lines = [
+        _fm(meta),
+        "# Terragrunt Dependencies",
+        "",
+        "Static `dependency.config_path` relationships detected from unit configs.",
+        "",
+        "```mermaid",
+        "graph TD",
+    ]
+    ids = {u.name: f"u{i}" for i, u in enumerate(model.units)}
+    for name, id_ in ids.items():
+        lines.append(f'  {id_}["{name}"]')
     for u in model.units:
         for dep in u.dependencies:
-            try: target=(u.path/dep).resolve().relative_to(model.root.resolve()).as_posix()
-            except Exception: continue
-            if target in ids: lines.append(f'  {ids[u.name]} --> {ids[target]}')
-    lines += ['```','']; _write(gp,'\n'.join(lines))
-    idx=['# Generated Terragrunt Knowledge','',f'Units: **{len(model.units)}**  ',f'Stack definitions: **{len(model.stack_files)}**','', '* [Dependency graph](dependencies.md)','', '## Units','']+links+['']
-    if model.stack_files: idx += ['## Stack definitions','']+[f'* `{p}`' for p in model.stack_files]+['']
-    if model.shared_hcl_files: idx += ['## Shared HCL','']+[f'* `{p}`' for p in model.shared_hcl_files]+['']
-    _write(gen/'index.md','\n'.join(idx))
-    _write(out/'index.md','---\nokf_version: "0.2"\n---\n\n# Terragrunt Knowledge Bundle\n\nStart with [generated knowledge](generated/) and read only the relevant unit.\n\n## Curated knowledge\n\n* [Architecture](knowledge/architecture.md)\n* [Security](knowledge/security.md)\n\nTerragrunt configuration and referenced Terraform/OpenTofu modules remain the implementation source of truth.\n')
-    manifest={'tf2okf_version':__version__,'okf_version':'0.2','framework':'terragrunt','source_files':{},'generated_files':{}}
-    files=set(model.stack_files+model.shared_hcl_files+[u.config_file for u in model.units])
+            try:
+                target = (u.path / dep).resolve().relative_to(model.root.resolve()).as_posix()
+            except Exception:
+                continue
+            if target in ids:
+                lines.append(f"  {ids[u.name]} --> {ids[target]}")
+    lines += ["```", ""]
+    _write(gp, "\n".join(lines))
+    idx = (
+        [
+            "# Generated Terragrunt Knowledge",
+            "",
+            "Use this page as a router. Read the smallest useful Terragrunt unit or shared definition before reading source.",
+            "",
+            f"Units: **{len(model.units)}**  ",
+            f"Stack definitions: **{len(model.stack_files)}**  ",
+            f"Shared HCL files: **{len(model.shared_hcl_files)}**",
+            "",
+            "## Read first",
+            "",
+            "| Question | Read |",
+            "|---|---|",
+            "| What unit owns a change or runtime issue? | The matching unit page under `units/` |",
+            "| What depends on what across units? | [Dependency graph](dependencies.md) |",
+            "| Where should I start for a recurring task or incident? | `knowledge/task-routing.md` |",
+            "| Which principals effectively have access? | `knowledge/iam-permissions.md` |",
+            "",
+            "## Units",
+            "",
+        ]
+        + links
+        + [""]
+    )
+    if model.stack_files:
+        idx += ["## Stack definitions", ""] + [f"* `{p}`" for p in model.stack_files] + [""]
+    if model.shared_hcl_files:
+        idx += ["## Shared HCL", ""] + [f"* `{p}`" for p in model.shared_hcl_files] + [""]
+    _write(gen / "index.md", "\n".join(idx))
+    _write(
+        out / "index.md",
+        '---\nokf_version: "0.2"\n---\n\n# Terragrunt Knowledge Bundle\n\nStart here. Use this bundle to route into the smallest useful generated or curated page before reading source.\n\n## Read order\n\n1. Open `generated/index.md` for the machine-owned router.\n2. Open `knowledge/index.md` for the curated router.\n3. Read Terragrunt or Terraform source only after OKF has identified the likely edit surface.\n\n## Generated knowledge\n\n* [Generated knowledge](generated/) - Router, unit pages, and cross-unit dependency signals.\n\n## Curated knowledge\n\n* [Curated knowledge router](knowledge/index.md)\n* [Architecture](knowledge/architecture.md)\n* [Security](knowledge/security.md)\n* [Task Routing](knowledge/task-routing.md)\n* [IAM Permissions](knowledge/iam-permissions.md)\n* [AWS Advisories](knowledge/aws-advisories.md)\n\nTerragrunt configuration and referenced Terraform/OpenTofu modules remain the implementation source of truth.\n',
+    )
+    if _ai_enabled(cfg):
+        _write_terragrunt_ai_overview(_ai_output_path(out, cfg) / "overview.md", model, cfg)
+    manifest = {
+        "tf2okf_version": __version__,
+        "okf_version": "0.2",
+        "framework": "terragrunt",
+        "source_files": {},
+        "generated_files": {},
+    }
+    files = set(model.stack_files + model.shared_hcl_files + [u.config_file for u in model.units])
     for u in model.units:
-        if u.terraform: files.update(u.terraform.source_files)
+        if u.terraform:
+            files.update(u.terraform.source_files)
     for rel in sorted(files):
-        p=model.root/rel
-        if p.exists(): manifest['source_files'][rel]=hashlib.sha256(p.read_bytes()).hexdigest()
-    for p in sorted(gen.rglob('*.md')): manifest['generated_files'][p.relative_to(out).as_posix()]=_normalised_hash(p)
-    (out/'.tf2okf-manifest.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+        p = model.root / rel
+        if p.exists():
+            manifest["source_files"][rel] = hashlib.sha256(p.read_bytes()).hexdigest()
+    for p in sorted(gen.rglob("*.md")):
+        manifest["generated_files"][p.relative_to(out).as_posix()] = _normalised_hash(p)
+    (out / ".tf2okf-manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _write_terragrunt_ai_overview(path: Path, model: TerragruntModel, cfg: dict) -> None:
+    names = ", ".join(u.name for u in model.units[:20]) or "none"
+    prompt = (
+        "Summarize Terragrunt structure for engineering handoff. "
+        "Return markdown only with headings: '## Overview', '## Unit Relationships', '## Operational Notes', '## Risks'. "
+        "Keep under 180 words.\n\n"
+        f"Unit count: {len(model.units)}\n"
+        f"Units: {names}\n"
+        f"Stack files: {len(model.stack_files)}\n"
+        f"Shared HCL files: {len(model.shared_hcl_files)}\n"
+    )
+    provider, model_name, summary = generate_summary(prompt, cfg)
+    meta = {
+        "type": "AI Infrastructure Summary",
+        "title": "AI Overview",
+        "description": "Concise AI-generated Terragrunt summary for quick retrieval.",
+        "tags": ["ai", "summary", "compact", "terragrunt"],
+        "generated": {"by": f"tf2okf/{__version__}", "at": _stamp()},
+        "ai": {"provider": provider, "model": model_name},
+    }
+    _write(path, _fm(meta) + "# AI Overview\n\n" + summary + "\n")

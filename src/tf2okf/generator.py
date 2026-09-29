@@ -154,6 +154,29 @@ def generate_bundle(model: TerraformModel, out: Path, config: dict, stable_times
     gen.mkdir(parents=True, exist_ok=True)
     knowledge = out / "knowledge"
     knowledge.mkdir(exist_ok=True)
+    curated_index = knowledge / "index.md"
+    if not curated_index.exists():
+        _write(
+            curated_index,
+            _fm(
+                {
+                    "type": "Knowledge Index",
+                    "title": "Curated Knowledge Router",
+                    "description": "Human-curated entry point for manual OKF guidance.",
+                    "tags": ["knowledge", "manual", "routing"],
+                }
+            )
+            + "# Curated Knowledge Router\n\n"
+            + "Use this page to route into the smallest human-maintained note before reading broader documentation.\n\n"
+            + "| Question | Read |\n"
+            + "|---|---|\n"
+            + "| What is the intended architecture or boundary? | [Architecture](architecture.md) |\n"
+            + "| What security rule or rationale applies? | [Security](security.md) |\n"
+            + "| Where should I start for a recurring task or incident? | [Task Routing](task-routing.md) |\n"
+            + "| Which principals effectively have access? | [IAM Permissions](iam-permissions.md) |\n"
+            + "| Is there an AWS lifecycle or deprecation caveat? | [AWS Advisories](aws-advisories.md) |\n"
+        )
+
     for name, title, description, tags, body in [
         (
             "architecture.md",
@@ -417,52 +440,52 @@ def _write_iam_access(path: Path, model: TerraformModel) -> None:
 
 
 def _write_generated_index(path: Path, model: TerraformModel, compact: bool = False) -> None:
+    resource_count = len(model.resources)
+    module_count = len(model.modules)
+    provider_count = len(model.providers)
+    input_count = len(model.variables)
+    output_count = len(model.outputs)
+
     lines = ["# Generated Terraform Knowledge", ""]
-    if compact:
-        lines += [
-            "* [Inputs](inputs.md)",
-            "* [Outputs](outputs.md)",
-            "* [Providers](providers.md)",
-            "* [Dependencies](dependencies.md)",
-            "",
-        ]
-    else:
-        lines += [
-            "Machine-generated summaries of Terraform structure, interfaces, providers, dependencies, and detected IAM facts.",
-            "",
-            "## Read first",
-            "",
-            "* [Inputs](inputs.md) - Start here for variable, tfvars, and required-value questions.",
-            "* [Outputs](outputs.md) - Start here for integration and downstream-consumer questions.",
-            "* [Providers](providers.md) - Start here for cloud/provider ownership questions.",
-            "* [Dependencies](dependencies.md) - Start here for resource and module relationship questions.",
-        ]
-        if model.iam_policies:
-            lines.append("* [IAM access](iam-access.md) - Start here for policy actions, resources, and attachment hints.")
+    lines += [
+        "Use this page as a router. Read the smallest relevant page before opening Terraform source.",
+        "",
+        f"Resources: **{resource_count}**  ",
+        f"Modules: **{module_count}**  ",
+        f"Providers: **{provider_count}**  ",
+        f"Inputs: **{input_count}**  ",
+        f"Outputs: **{output_count}**",
+        "",
+        "## Read first",
+        "",
+        "| Question | Read |",
+        "|---|---|",
+        "| What inputs configure this stack? | [Inputs](inputs.md) |",
+        "| What values does it expose? | [Outputs](outputs.md) |",
+        "| Which cloud providers does it use? | [Providers](providers.md) |",
+        "| What depends on what? | [Dependencies](dependencies.md) |",
+    ]
+    if model.iam_policies:
+        lines.append("| What IAM actions or attachments are declared? | [IAM access](iam-access.md) |")
+    if resource_count:
+        lines.append("| What is a specific resource's configuration? | `resources/<address>.md` for that resource |")
+    if module_count:
+        lines.append("| What does a specific module call reference? | `modules/<name>.md` for that module |")
+    lines.append("")
+
+    if not compact and model.resources:
+        lines += ["## Resource inventory", "", "Open a resource page only when you already know the address you need.", ""]
+        lines += [f"* [{r.address}](resources/{_safe(r.address)}.md)" for r in sorted(model.resources, key=lambda x: x.address)]
         lines.append("")
-    if model.resources:
-        lines += (
-            ["## Resources", ""]
-            + [
-                f"* [{r.address}](resources/{_safe(r.address)}.md) - `{r.type}`."
-                for r in sorted(model.resources, key=lambda x: x.address)
-            ]
-            + [""]
-        )
-    if model.modules:
-        lines += (
-            ["## Modules", ""]
-            + [
-                f"* [{m.address}](modules/{_safe(m.name)}.md) - `{m.source or 'unknown'}`."
-                for m in sorted(model.modules, key=lambda x: x.name)
-            ]
-            + [""]
-        )
+    if not compact and model.modules:
+        lines += ["## Module inventory", "", "Open a module page only when the question is about a specific module call.", ""]
+        lines += [f"* [{m.address}](modules/{_safe(m.name)}.md)" for m in sorted(model.modules, key=lambda x: x.name)]
+        lines.append("")
     if model.terraform_docs_markdown and not compact:
         lines += [
             "## terraform-docs",
             "",
-            "The section below is copied from `terraform-docs` when available.",
+            "terraform-docs content is available for humans, but it is intentionally kept out of the main routing guidance.",
             "",
             model.terraform_docs_markdown,
             "",
@@ -474,14 +497,15 @@ def _write_root_index(path: Path, model: TerraformModel) -> None:
     header = '---\nokf_version: "0.2"\n---\n\n'
     body = (
         "# Terraform Knowledge Bundle\n\n"
-        "Start here. Machine-generated Terraform facts live under `generated/`; human-maintained context lives under `knowledge/`.\n\n"
+        "Start here. Use this bundle to route into the smallest useful generated or curated page before reading source.\n\n"
         "## Read order\n\n"
-        "1. Open `generated/index.md` and route to the smallest relevant concept.\n"
-        "2. Use `knowledge/task-routing.md` and `knowledge/iam-permissions.md` for common operational questions.\n"
+        "1. Open `generated/index.md` for the machine-owned router.\n"
+        "2. Open `knowledge/index.md` for the curated router.\n"
         "3. Read Terraform source only after OKF has identified the likely edit surface or when generated facts are incomplete.\n\n"
         "## Generated knowledge\n\n"
-        "* [Terraform knowledge](generated/) - Resources, modules, inputs, outputs, providers and dependencies.\n\n"
+        "* [Terraform knowledge](generated/) - Router, interfaces, providers, dependencies, IAM facts, and optional inventories.\n\n"
         "## Curated knowledge\n\n"
+        "* [Curated knowledge router](knowledge/index.md) - Start here for human-maintained guidance.\n"
         "* [Architecture](knowledge/architecture.md) - Architectural intent and constraints.\n"
         "* [Security](knowledge/security.md) - Security requirements and rationale.\n"
         "* [Task Routing](knowledge/task-routing.md) - Direct pointers for common questions and incidents.\n"

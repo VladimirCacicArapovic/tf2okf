@@ -1,10 +1,13 @@
 from __future__ import annotations
+
+import re
 from dataclasses import dataclass, field
 from fnmatch import fnmatch
 from pathlib import Path
-import re
+
 from .model import TerraformModel
-from .parser import parse_terraform, terraform_docs_json, terraform_docs_markdown, enrich_from_terraform_docs
+from .parser import enrich_from_terraform_docs, parse_terraform, terraform_docs_json, terraform_docs_markdown
+
 
 @dataclass
 class TerraformUnit:
@@ -12,6 +15,7 @@ class TerraformUnit:
     kind: str  # component | module
     path: Path
     model: TerraformModel
+
 
 @dataclass
 class TfScaffoldModel:
@@ -24,19 +28,19 @@ class TfScaffoldModel:
 
 
 def is_tfscaffold(repo: Path, cfg: dict) -> bool:
-    mode = cfg.get('layout', {}).get('mode', 'auto')
-    if mode == 'tfscaffold':
+    mode = cfg.get("layout", {}).get("mode", "auto")
+    if mode == "tfscaffold":
         return True
-    if mode == 'terraform':
+    if mode == "terraform":
         return False
-    tcfg = cfg.get('tfscaffold', {})
-    components = repo / tcfg.get('components_dir', 'components')
-    wrapper = repo / 'bin' / 'terraform.sh'
+    tcfg = cfg.get("tfscaffold", {})
+    components = repo / tcfg.get("components_dir", "components")
+    wrapper = repo / "bin" / "terraform.sh"
     return components.is_dir() and wrapper.exists()
 
 
 def _include(name: str, patterns: list[str]) -> bool:
-    return any(fnmatch(name, p) for p in (patterns or ['*']))
+    return any(fnmatch(name, p) for p in (patterns or ["*"]))
 
 
 def _parse_unit(repo: Path, path: Path, name: str, kind: str, use_docs: bool) -> TerraformUnit:
@@ -48,33 +52,33 @@ def _parse_unit(repo: Path, path: Path, name: str, kind: str, use_docs: bool) ->
 
 
 def discover_tfscaffold(repo: Path, cfg: dict) -> TfScaffoldModel:
-    tcfg = cfg.get('tfscaffold', {})
-    use_docs = cfg.get('sources', {}).get('terraform_docs', True)
+    tcfg = cfg.get("tfscaffold", {})
+    use_docs = cfg.get("sources", {}).get("terraform_docs", True)
     result = TfScaffoldModel(root=repo)
 
-    components_dir = repo / tcfg.get('components_dir', 'components')
-    patterns = tcfg.get('include_components', ['*'])
+    components_dir = repo / tcfg.get("components_dir", "components")
+    patterns = tcfg.get("include_components", ["*"])
     if components_dir.is_dir():
         for child in sorted(components_dir.iterdir()):
             if not child.is_dir() or not _include(child.name, patterns):
                 continue
-            if any(child.glob('*.tf')):
-                result.components.append(_parse_unit(repo, child, child.name, 'component', use_docs))
+            if any(child.glob("*.tf")):
+                result.components.append(_parse_unit(repo, child, child.name, "component", use_docs))
 
-    if tcfg.get('include_modules', True):
-        modules_dir = repo / tcfg.get('modules_dir', 'modules')
+    if tcfg.get("include_modules", True):
+        modules_dir = repo / tcfg.get("modules_dir", "modules")
         if modules_dir.is_dir():
             for child in sorted(modules_dir.iterdir()):
-                if child.is_dir() and any(child.glob('*.tf')):
-                    result.modules.append(_parse_unit(repo, child, child.name, 'module', use_docs))
+                if child.is_dir() and any(child.glob("*.tf")):
+                    result.modules.append(_parse_unit(repo, child, child.name, "module", use_docs))
 
-    variables_dir = repo / tcfg.get('variables_dir', 'etc')
+    variables_dir = repo / tcfg.get("variables_dir", "etc")
     if variables_dir.is_dir():
-        for p in sorted(list(variables_dir.glob('*.tfvars')) + list(variables_dir.glob('*.tfvars.json'))):
+        for p in sorted(list(variables_dir.glob("*.tfvars")) + list(variables_dir.glob("*.tfvars.json"))):
             rel = p.relative_to(repo).as_posix()
             result.tfvars_files.append(rel)
             # tfscaffold's common convention: env_<region>_<environment>.tfvars / versions_<region>_<environment>.tfvars
-            m = re.match(r'^(?:env|versions)_([^_]+)_(.+?)\.tfvars(?:\.json)?$', p.name)
+            m = re.match(r"^(?:env|versions)_([^_]+)_(.+?)\.tfvars(?:\.json)?$", p.name)
             if m:
                 result.regions.add(m.group(1))
                 result.environments.add(m.group(2))

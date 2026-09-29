@@ -190,6 +190,16 @@ def _write_module_call(path: Path, m: Module, repo: Path, unit: TerraformUnit) -
         f"terraform://tfscaffold/{unit.kind}/{unit.name}/{m.address}",
     )
     lines = [_fm(meta), f"# {m.address}", "", f"- Source: `{m.source or 'unknown'}`", f"- Defined in: `{m.file}`", ""]
+    input_assignments = {key: value for key, value in sorted(m.attributes.items()) if key not in {"source", "version", "providers"}}
+    if input_assignments:
+        lines += ["## Input assignments", "", "| Input | Expression |", "|---|---|"]
+        for key, value in input_assignments.items():
+            escaped_value = redact_attribute(key, value).replace("|", "\\|")
+            lines.append(f"| `{key}` | `{escaped_value}` |")
+        lines.append("")
+    if "providers" in m.attributes:
+        providers_expr = redact_attribute("providers", m.attributes["providers"]).replace("|", "\\|")
+        lines += ["## Provider wiring", "", f"`{providers_expr}`", ""]
     if m.references:
         lines += ["## References", ""] + [f"- `{x}`" for x in sorted(m.references)] + [""]
     _write(path, "\n".join(lines))
@@ -208,24 +218,38 @@ def _write_summary(
         repo,
     )
     description = manual_description or _MANUAL_DESC_DEFAULT
+    source_dir = unit.path.relative_to(repo).as_posix()
     lines = [
         _fm(meta),
         f"# {unit.name}",
         "",
-        (
-            f"This tfscaffold {unit.kind} summarizes the Terraform root under "
-            f"`{unit.path.relative_to(repo).as_posix()}` and highlights its interface, "
-            "dependencies, and generated references."
-        ),
+        f"Use this page as a router for tfscaffold {unit.kind} `{unit.name}`.",
         "",
         f"Kind: **tfscaffold {unit.kind}**",
         "",
-        f"Source directory: `{unit.path.relative_to(repo).as_posix()}`",
+        f"Source directory: `{source_dir}`",
         "",
-        f"- Resources/data sources: **{len(model.resources)}**",
-        f"- Module calls: **{len(model.modules)}**",
-        f"- Inputs: **{len(model.variables)}**",
-        f"- Outputs: **{len(model.outputs)}**",
+        f"Resources/data sources: **{len(model.resources)}**  ",
+        f"Module calls: **{len(model.modules)}**  ",
+        f"Inputs: **{len(model.variables)}**  ",
+        f"Outputs: **{len(model.outputs)}**",
+        "",
+        "## Read first",
+        "",
+        "| Question | Read |",
+        "|---|---|",
+        "| What inputs configure this unit? | [Inputs](inputs.md) |",
+        "| What values does it expose? | [Outputs](outputs.md) |",
+        "| Which providers does it use? | [Providers](providers.md) |",
+        "| What depends on what inside this unit? | [Dependencies](dependencies.md) |",
+    ]
+    if model.iam_policies:
+        lines.append("| What IAM actions or attachments are declared? | [IAM access](iam-access.md) |")
+    if model.resources:
+        lines.append("| What is a specific resource's configuration? | `resources/<address>.md` for that resource |")
+    if model.modules:
+        lines.append("| What does a specific module call reference? | `module-calls/<name>.md` for that call |")
+    lines += [
         "",
         "## Component description",
         "",
@@ -233,36 +257,20 @@ def _write_summary(
         description,
         _MANUAL_DESC_END,
         "",
-        "## Knowledge",
-        "",
-        "* [Inputs](inputs.md)",
-        "* [Outputs](outputs.md)",
-        "* [Providers](providers.md)",
-        "* [Dependencies](dependencies.md)",
     ]
-    if model.iam_policies:
-        lines.append("* [IAM access](iam-access.md)")
-    lines.append("")
     if model.resources:
-        lines += (
-            ["## Resources and data sources", ""]
-            + [
-                f"* [{r.address}](resources/{_safe(r.address)}.md)"
-                for r in sorted(model.resources, key=lambda x: x.address)
-            ]
-            + [""]
-        )
+        lines += ["## Resource inventory", "", "Open a resource page only when you already know the address you need.", ""]
+        lines += [f"* [{r.address}](resources/{_safe(r.address)}.md)" for r in sorted(model.resources, key=lambda x: x.address)]
+        lines.append("")
     if model.modules:
-        lines += (
-            ["## Module calls", ""]
-            + [f"* [{m.address}](module-calls/{_safe(m.name)}.md)" for m in sorted(model.modules, key=lambda x: x.name)]
-            + [""]
-        )
+        lines += ["## Module inventory", "", "Open a module-call page only when the question is about a specific call.", ""]
+        lines += [f"* [{m.address}](module-calls/{_safe(m.name)}.md)" for m in sorted(model.modules, key=lambda x: x.name)]
+        lines.append("")
     if model.terraform_docs_markdown:
         lines += [
             "## terraform-docs",
             "",
-            "The section below is copied from `terraform-docs` when that tool is available for this unit.",
+            "terraform-docs content is available for humans, but it is intentionally kept out of the main routing guidance.",
             "",
             model.terraform_docs_markdown,
             "",
@@ -290,9 +298,10 @@ def _write_iam_access(path: Path, model: TerraformModel, repo: Path, unit: Terra
         "",
     ]
     for fact in model.iam_policies:
-        lines += [f"## `{fact.address}`", "", f"- File: `{fact.file}`"]
+        lines += [f"## `{fact.address}`", "", f"- Source kind: `{fact.source_kind}`", f"- File: `{fact.file}`"]
         if fact.attachments:
             lines.append(f"- Attachments: `{', '.join(fact.attachments)}`")
+        lines.append(f"- Statement count: **{len(fact.statements)}**")
         if fact.raw_policy:
             lines.append(f"- Raw policy expression: `{redact_attribute('policy', fact.raw_policy).replace('|', '\\|')}`")
         lines.append("")
@@ -301,11 +310,13 @@ def _write_iam_access(path: Path, model: TerraformModel, repo: Path, unit: Terra
             for statement in fact.statements:
                 sid = statement.sid or ""
                 effect = statement.effect or "Allow"
+                actions_label = "actions" if statement.actions else "not_actions"
+                resources_label = "resources" if statement.resources else "not_resources"
                 actions = ", ".join(statement.actions or statement.not_actions) or ""
                 resources = ", ".join(statement.resources or statement.not_resources) or ""
                 principals = ", ".join(statement.principals) or ""
                 lines.append(
-                    f"| `{sid}` | `{effect}` | `{actions.replace('|', '\\|')}` | `{resources.replace('|', '\\|')}` | `{principals.replace('|', '\\|')}` |"
+                    f"| `{sid}` | `{effect}` | `{actions_label}: {actions.replace('|', '\\|')}` | `{resources_label}: {resources.replace('|', '\\|')}` | `{principals.replace('|', '\\|')}` |"
                 )
             lines.append("")
         else:
@@ -587,6 +598,28 @@ def generate_tfscaffold_bundle(model: TfScaffoldModel, out: Path, cfg: dict) -> 
     gen.mkdir(parents=True, exist_ok=True)
     knowledge = out / "knowledge"
     knowledge.mkdir(exist_ok=True)
+    curated_index = knowledge / "index.md"
+    if not curated_index.exists():
+        _write(
+            curated_index,
+            _fm(
+                {
+                    "type": "Knowledge Index",
+                    "title": "Curated Knowledge Router",
+                    "description": "Human-curated entry point for manual OKF guidance.",
+                    "tags": ["knowledge", "manual", "routing"],
+                }
+            )
+            + "# Curated Knowledge Router\n\n"
+            + "Use this page to route into the smallest human-maintained note before reading broader documentation.\n\n"
+            + "| Question | Read |\n"
+            + "|---|---|\n"
+            + "| What is the intended architecture or boundary? | [Architecture](architecture.md) |\n"
+            + "| What security rule or rationale applies? | [Security](security.md) |\n"
+            + "| Where should I start for a recurring task or incident? | [Task Routing](task-routing.md) |\n"
+            + "| Which principals effectively have access? | [IAM Permissions](iam-permissions.md) |\n"
+            + "| Is there an AWS lifecycle or deprecation caveat? | [AWS Advisories](aws-advisories.md) |\n"
+        )
     for name, title, tags, body in _KNOWLEDGE_FILE_TEMPLATES:
         p = knowledge / name
         if not p.exists():
@@ -614,36 +647,39 @@ def generate_tfscaffold_bundle(model: TfScaffoldModel, out: Path, cfg: dict) -> 
     gi = [
         "# Generated tfscaffold Knowledge",
         "",
+        "Use this page as a router. Read the smallest useful component, shared module, or metadata page before reading source.",
+        "",
         f"Components: **{len(model.components)}**  ",
         f"Shared modules: **{len(model.modules)}**",
         "",
-        "* [Environments](environments.md) - Environment/version tfvars discovered under `etc/`.",
-        "* [Topology](topology.md) - Component to shared-module composition graph.",
+        "## Read first",
+        "",
+        "| Question | Read |",
+        "|---|---|",
+        "| Which environments or regions exist? | [Environments](environments.md) |",
+        "| Which component uses which shared module? | [Topology](topology.md) |",
+        "| Which component owns a specific runtime or configuration question? | The matching page under `components/` |",
+        "| Which reusable module defines shared behavior? | The matching page under `shared-modules/` |",
         "",
     ]
     if model.components:
-        gi += (
-            ["## Components", ""]
-            + [f"* [{u.name}](components/{u.name}/) - independent Terraform root module." for u in model.components]
-            + [""]
-        )
+        gi += ["## Components", ""] + [f"* [{u.name}](components/{u.name}/)" for u in model.components] + [""]
     if model.modules:
-        gi += (
-            ["## Shared modules", ""]
-            + [f"* [{u.name}](shared-modules/{u.name}/) - reusable Terraform module." for u in model.modules]
-            + [""]
-        )
+        gi += ["## Shared modules", ""] + [f"* [{u.name}](shared-modules/{u.name}/)" for u in model.modules] + [""]
     _write(gen / "index.md", "\n".join(gi))
 
     header = '---\nokf_version: "0.2"\n---\n\n'
     body = (
         "# tfscaffold Knowledge Bundle\n\n"
-        "This repository uses tfscaffold. Start with the generated component index, then read only the "
-        "component or shared module relevant to the task.\n\n"
+        "Start here. Use this bundle to route into the smallest useful generated or curated page before reading source.\n\n"
+        "## Read order\n\n"
+        "1. Open `generated/index.md` for the machine-owned router.\n"
+        "2. Open `knowledge/index.md` for the curated router.\n"
+        "3. Read Terraform source only after OKF has identified the likely edit surface.\n\n"
         "## Generated knowledge\n\n"
-        "* [tfscaffold generated knowledge](generated/) - Components, shared modules, environment metadata and "
-        "Terraform facts.\n\n"
+        "* [tfscaffold generated knowledge](generated/) - Router, components, shared modules, environment metadata, and topology.\n\n"
         "## Curated knowledge\n\n"
+        "* [Curated knowledge router](knowledge/index.md)\n"
         "* [Architecture](knowledge/architecture.md)\n"
         "* [Security](knowledge/security.md)\n"
         "* [Task Routing](knowledge/task-routing.md)\n"

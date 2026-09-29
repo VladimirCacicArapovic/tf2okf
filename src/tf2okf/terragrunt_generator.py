@@ -56,6 +56,28 @@ def generate_terragrunt_bundle(model: TerragruntModel, out: Path, cfg: dict) -> 
                 p.rmdir()
     gen.mkdir(parents=True, exist_ok=True)
     (out / "knowledge").mkdir(exist_ok=True)
+    curated_index = out / "knowledge" / "index.md"
+    if not curated_index.exists():
+        _write(
+            curated_index,
+            _fm(
+                {
+                    "type": "Knowledge Index",
+                    "title": "Curated Knowledge Router",
+                    "description": "Human-curated entry point for manual OKF guidance.",
+                    "tags": ["knowledge", "manual", "routing"],
+                }
+            )
+            + "# Curated Knowledge Router\n\n"
+            + "Use this page to route into the smallest human-maintained note before reading broader documentation.\n\n"
+            + "| Question | Read |\n"
+            + "|---|---|\n"
+            + "| What is the intended architecture or boundary? | [Architecture](architecture.md) |\n"
+            + "| What security rule or rationale applies? | [Security](security.md) |\n"
+            + "| Where should I start for a recurring task or incident? | [Task Routing](task-routing.md) |\n"
+            + "| Which principals effectively have access? | [IAM Permissions](iam-permissions.md) |\n"
+            + "| Is there an AWS lifecycle or deprecation caveat? | [AWS Advisories](aws-advisories.md) |\n"
+        )
     for name, title, body in [
         ("architecture.md", "Architecture", "Add Terragrunt stack/unit architecture and design intent here."),
         ("security.md", "Security", "Add project-specific security constraints and rationale here."),
@@ -204,17 +226,20 @@ def generate_terragrunt_bundle(model: TerragruntModel, out: Path, cfg: dict) -> 
         [
             "# Generated Terragrunt Knowledge",
             "",
-            "Use this index to route questions to the smallest useful Terragrunt unit or shared definition before reading source.",
+            "Use this page as a router. Read the smallest useful Terragrunt unit or shared definition before reading source.",
             "",
             f"Units: **{len(model.units)}**  ",
-            f"Stack definitions: **{len(model.stack_files)}**",
+            f"Stack definitions: **{len(model.stack_files)}**  ",
             f"Shared HCL files: **{len(model.shared_hcl_files)}**",
             "",
             "## Read first",
             "",
-            "* [Dependency graph](dependencies.md) - For cross-unit relationships and deployment order clues.",
-            "* `knowledge/task-routing.md` - For common operational and investigation paths.",
-            "* `knowledge/iam-permissions.md` - For curated effective permission mappings.",
+            "| Question | Read |",
+            "|---|---|",
+            "| What unit owns a change or runtime issue? | The matching unit page under `units/` |",
+            "| What depends on what across units? | [Dependency graph](dependencies.md) |",
+            "| Where should I start for a recurring task or incident? | `knowledge/task-routing.md` |",
+            "| Which principals effectively have access? | `knowledge/iam-permissions.md` |",
             "",
             "## Units",
             "",
@@ -229,7 +254,7 @@ def generate_terragrunt_bundle(model: TerragruntModel, out: Path, cfg: dict) -> 
     _write(gen / "index.md", "\n".join(idx))
     _write(
         out / "index.md",
-        '---\nokf_version: "0.2"\n---\n\n# Terragrunt Knowledge Bundle\n\nStart with [generated knowledge](generated/) and read only the relevant unit.\n\n## Curated knowledge\n\n* [Architecture](knowledge/architecture.md)\n* [Security](knowledge/security.md)\n* [Task Routing](knowledge/task-routing.md)\n* [IAM Permissions](knowledge/iam-permissions.md)\n* [AWS Advisories](knowledge/aws-advisories.md)\n\nTerragrunt configuration and referenced Terraform/OpenTofu modules remain the implementation source of truth.\n',
+        '---\nokf_version: "0.2"\n---\n\n# Terragrunt Knowledge Bundle\n\nStart here. Use this bundle to route into the smallest useful generated or curated page before reading source.\n\n## Read order\n\n1. Open `generated/index.md` for the machine-owned router.\n2. Open `knowledge/index.md` for the curated router.\n3. Read Terragrunt or Terraform source only after OKF has identified the likely edit surface.\n\n## Generated knowledge\n\n* [Generated knowledge](generated/) - Router, unit pages, and cross-unit dependency signals.\n\n## Curated knowledge\n\n* [Curated knowledge router](knowledge/index.md)\n* [Architecture](knowledge/architecture.md)\n* [Security](knowledge/security.md)\n* [Task Routing](knowledge/task-routing.md)\n* [IAM Permissions](knowledge/iam-permissions.md)\n* [AWS Advisories](knowledge/aws-advisories.md)\n\nTerragrunt configuration and referenced Terraform/OpenTofu modules remain the implementation source of truth.\n',
     )
     if _ai_enabled(cfg):
         _write_terragrunt_ai_overview(_ai_output_path(out, cfg) / "overview.md", model, cfg)
