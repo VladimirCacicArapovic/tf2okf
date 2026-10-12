@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import difflib
+import re
 import tempfile
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from .config import load, write_default
 from .copilot import ensure as ensure_copilot
 from .frameworks import SUPPORTED, detect, discover
 from .generator import generate_bundle
-from .scaffold_generator import generate_tfscaffold_bundle
+from .scaffold_generator import _MANUAL_DESC_END, _MANUAL_DESC_START, generate_tfscaffold_bundle
 from .terragrunt_generator import generate_terragrunt_bundle
 
 app = typer.Typer(help="Generate OKF v0.2 knowledge bundles from Terraform-family repositories.", no_args_is_help=True)
@@ -179,8 +180,8 @@ def check(path: Path = typer.Argument(Path("."), exists=True, file_okay=False)):
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td) / ".okf"
         d, _ = _generate(repo, cfg, tmp)
-        current = _snapshot(out / "generated")
-        expected = _snapshot(tmp / "generated")
+        current = _snapshot(out / "generated", ignore_manual_descriptions=True)
+        expected = _snapshot(tmp / "generated", ignore_manual_descriptions=True)
     if current != expected:
         typer.echo(f"{d.framework} knowledge drift detected. Run: tf2okf generate", err=True)
         for k in sorted(expected.keys() - current.keys()):
@@ -232,15 +233,23 @@ def _files(root: Path):
 
 
 def _normalised_lines(path: Path):
-    import re
-
     text = path.read_text(encoding="utf-8")
     text = re.sub(r"(?m)^\s*at: ['\"]?[^\n'\"]+['\"]?\s*$", "  at: <timestamp>", text)
     return text.splitlines(keepends=True)
 
 
-def _snapshot(root: Path):
-    return {k: "".join(_normalised_lines(root / k)) for k in _files(root)}
+def _snapshot(root: Path, ignore_manual_descriptions: bool = False):
+    snapshot = {k: "".join(_normalised_lines(root / k)) for k in _files(root)}
+    if ignore_manual_descriptions:
+        pattern = re.compile(
+            re.escape(_MANUAL_DESC_START) + r".*?(?=" + re.escape(_MANUAL_DESC_END) + r")",
+            re.S,
+        )
+        snapshot = {
+            path: pattern.sub(_MANUAL_DESC_START + "\n", content)
+            for path, content in snapshot.items()
+        }
+    return snapshot
 
 
 if __name__ == "__main__":

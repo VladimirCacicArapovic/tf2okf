@@ -86,6 +86,28 @@ def test_tfscaffold_component_description_survives_regeneration(tmp_path: Path):
     assert replacement in index.read_text()
 
 
+def test_check_ignores_tfscaffold_manual_description_changes(tmp_path: Path):
+    make_repo(tmp_path)
+    r = runner.invoke(app, ["init", str(tmp_path)])
+    assert r.exit_code == 0, r.output
+
+    pattern = re.compile(
+        r"(<!-- tf2okf:manual-description-start -->\n).*?(\n<!-- tf2okf:manual-description-end -->)",
+        re.S,
+    )
+    indexes = list((tmp_path / ".okf/generated").rglob("index.md"))
+    assert indexes
+    for index in indexes:
+        text = index.read_text()
+        if "<!-- tf2okf:manual-description-start -->" in text:
+            index.write_text(
+                pattern.sub(rf"\g<1>Description for {index.parent.name}.\g<2>", text, count=1)
+            )
+
+    r = runner.invoke(app, ["check", str(tmp_path)])
+    assert r.exit_code == 0, r.output
+
+
 def test_tfscaffold_compact_profile_skips_resource_concepts(tmp_path: Path):
     make_repo(tmp_path)
     cfg = load(tmp_path)
