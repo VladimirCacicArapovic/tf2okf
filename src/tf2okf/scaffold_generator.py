@@ -106,13 +106,14 @@ def _preserved_manual_description(existing_text: str | None) -> str:
     return content or _MANUAL_DESC_DEFAULT
 
 
-def _existing_component_descriptions(gen: Path) -> dict[str, str]:
+def _existing_manual_descriptions(gen: Path) -> dict[str, str]:
     preserved: dict[str, str] = {}
-    components = gen / "components"
-    if not components.exists():
-        return preserved
-    for index in components.glob("*/index.md"):
-        preserved[index.relative_to(gen).as_posix()] = _preserved_manual_description(index.read_text(encoding="utf-8"))
+    for section in ("components", "shared-modules"):
+        section_dir = gen / section
+        if not section_dir.exists():
+            continue
+        for index in section_dir.rglob("index.md"):
+            preserved[index.relative_to(gen).as_posix()] = _preserved_manual_description(index.read_text(encoding="utf-8"))
     return preserved
 
 
@@ -588,7 +589,7 @@ def generate_tfscaffold_bundle(model: TfScaffoldModel, out: Path, cfg: dict) -> 
     _LOGICAL_OUT = (model.root / cfg.get("output", {}).get("directory", ".okf")).resolve()
     out.mkdir(parents=True, exist_ok=True)
     gen = out / "generated"
-    preserved_manual = _existing_component_descriptions(gen)
+    preserved_manual = _existing_manual_descriptions(gen)
     if gen.exists():
         for p in sorted(gen.rglob("*"), reverse=True):
             if p.is_file():
@@ -640,7 +641,8 @@ def generate_tfscaffold_bundle(model: TfScaffoldModel, out: Path, cfg: dict) -> 
         key = Path("components") / unit.name / "index.md"
         _write_unit(gen / "components" / unit.name, unit, model.root, cfg, preserved_manual.get(key.as_posix()))
     for unit in model.modules:
-        _write_unit(gen / "shared-modules" / unit.name, unit, model.root, cfg)
+        key = Path("shared-modules") / unit.name / "index.md"
+        _write_unit(gen / "shared-modules" / unit.name, unit, model.root, cfg, preserved_manual.get(key.as_posix()))
     _write_envs(gen / "environments.md", model)
     _write_topology(gen / "topology.md", model)
 
