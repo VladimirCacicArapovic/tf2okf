@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.9.0
+- Fixed tfscaffold shared-module `index.md` regeneration to preserve content between `tf2okf:manual-description-start` and `tf2okf:manual-description-end` markers.
+
 ## 0.6.0
 - Added extracted IAM facts for `aws_iam_policy_document` and inline `aws_iam_policy` `jsonencode(...)` policies, including statement `Sid`, effects, actions, resources, principals, and direct group/role/user attachment hints.
 - Added generated IAM access summary pages for plain Terraform and tfscaffold outputs, plus curated OKF scaffolding for task routing, IAM permissions, and AWS advisories.
